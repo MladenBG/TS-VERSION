@@ -40,6 +40,7 @@ import { UserDashboard } from './components/UserDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { VideoCall } from './components/VideoCall';
 import { Inbox } from './components/Inbox';
+import { InvisibleModeToggle } from './components/InvisibleModeToggle';
 
 // AUTH SCREENS
 import { HomeScreen } from './screens/HomeScreen';
@@ -57,8 +58,9 @@ export const navigationRef = createNavigationContainerRef();
 
 export default function App() {
   const [tab, setTab] = useState<'discover' | 'lobby' | 'favorites' | 'admin' | 'settings' | 'inbox'>('discover');
-  const [discoveryMode, setDiscoveryMode] = useState<'list' | 'swipe' | 'radar'>('list');
+  const [favTab, setFavTab] = useState<'my_likes' | 'liked_me' | 'viewed_me'>('my_likes');
 
+  const [discoveryMode, setDiscoveryMode] = useState<'list' | 'swipe' | 'radar'>('list');
   const [showPaywall, setShowPaywall] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -70,6 +72,11 @@ export default function App() {
   const [lastResetDate, setLastResetDate] = useState(Date.now());
   
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [likedMeProfiles, setLikedMeProfiles] = useState<any[]>([]);
+  const [viewedMeProfiles, setViewedMeProfiles] = useState<any[]>([]);
+  
+  // 🚀 GIFTS STATE 🚀
+  const [receivedGifts, setReceivedGifts] = useState<any[]>([]);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGender, setFilterGender] = useState('All');
@@ -109,8 +116,22 @@ export default function App() {
           }));
           setProfiles(formattedProfiles);
         }
+
+        const likedRes = await fetch('http://10.0.2.2:3000/api/likes/who-liked-me');
+        const likedData = await likedRes.json();
+        if (!likedData.error) setLikedMeProfiles(likedData);
+
+        const viewsRes = await fetch('http://10.0.2.2:3000/api/views');
+        const viewsData = await viewsRes.json();
+        if (!viewsData.error) setViewedMeProfiles(viewsData);
+
+        // 🚀 FETCH PRIVATE GIFTS 🚀
+        const giftsRes = await fetch('http://10.0.2.2:3000/api/gifts');
+        const giftsData = await giftsRes.json();
+        if (!giftsData.error) setReceivedGifts(giftsData);
+
       } catch (error) {
-        console.error("Failed to load real users:", error);
+        console.error("Failed to load data:", error);
       }
     };
 
@@ -141,9 +162,7 @@ export default function App() {
     }
   }, [tab]);
 
-  const playNotificationSound = async () => {
-    Vibration.vibrate(); 
-  };
+  const playNotificationSound = async () => { Vibration.vibrate(); };
 
   const [swipeIndex, setSwipeIndex] = useState(0);
   const position = useRef(new Animated.ValueXY()).current;
@@ -157,8 +176,23 @@ export default function App() {
 
   const [myName, setMyName] = useState('New User');
   const [myCity, setMyCity] = useState('Budva');
-  const [isPrivate, setIsPrivate] = useState(false);
+  
+  const [isPrivate, setIsPrivate] = useState(false); 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  const toggleInvisibleMode = async (newValue: boolean) => {
+    setIsPrivate(newValue); 
+    try {
+      await fetch('http://10.0.2.2:3000/api/settings/invisible', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_invisible: newValue })
+      });
+    } catch (error) {
+      console.error("Failed to update invisible mode:", error);
+      setIsPrivate(!newValue); 
+    }
+  };
 
   const radarAnim = useRef(new Animated.Value(0)).current;
   
@@ -288,6 +322,19 @@ export default function App() {
     });
   };
 
+  const handleProfileView = async (user: any) => {
+    setSelectedUser(user);
+    try {
+      await fetch('http://10.0.2.2:3000/api/views', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ viewed_id: user.id })
+      });
+    } catch (error) {
+      console.error("View not recorded:", error);
+    }
+  };
+
   const toggleLike = async (liked_user_id: string) => {
     setProfiles(prev => prev.map(p => 
       p.id === liked_user_id ? { ...p, isFavorite: !p.isFavorite } : p
@@ -382,9 +429,7 @@ export default function App() {
     }
   };
 
-  // 🚀 NEW VIP ADD FRIEND FUNCTION 🚀
   const handleAddFriend = async (user: any) => {
-    // 1. Check if VIP
     if (!isAdmin && !isVip) {
       Alert.alert(
         "Premium Feature", 
@@ -394,10 +439,8 @@ export default function App() {
       return;
     }
 
-    // 2. Optimistic Alert
     Alert.alert("Friend Request Sent", `You sent a friend request to ${user.name}!`);
 
-    // 3. Save to Database
     try {
       await fetch('http://10.0.2.2:3000/api/friends', {
         method: 'POST',
@@ -406,6 +449,27 @@ export default function App() {
       });
     } catch (error) {
       console.error("Failed to add friend:", error);
+    }
+  };
+
+  // 🚀 HANDLE SEND GIFT 🚀
+  const handleSendGift = async (user: any, giftName: string) => {
+    if (!isAdmin && !isVip) {
+      Alert.alert("Premium Feature", "Sending gifts is a VIP exclusive feature. Subscribe to stand out!");
+      setShowPaywall(true);
+      return;
+    }
+
+    Alert.alert("Gift Sent!", `You sent a ${giftName} to ${user.name}!`);
+    
+    try {
+      await fetch('http://10.0.2.2:3000/api/gifts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receiver_id: user.id, gift_name: giftName })
+      });
+    } catch (error) {
+      console.error("Failed to send gift:", error);
     }
   };
 
@@ -449,7 +513,7 @@ export default function App() {
             };
 
             return (
-              <SafeAreaView className="flex-1 bg-pink-800/30">
+              <SafeAreaView className="flex-1 bg-white">
                 <StatusBar barStyle="dark-content" />
                 
                 {tab !== 'admin' && tab !== 'settings' && tab !== 'inbox' && (
@@ -471,8 +535,9 @@ export default function App() {
                 )}
 
                 <View className="flex-1">
+                  {/* DISCOVER TAB */}
                   {tab === 'discover' && (
-                    <View className="flex-1">
+                    <View className="flex-1 relative">
                       {discoveryMode === 'list' && (
                         <>
                           <FlatList 
@@ -480,13 +545,13 @@ export default function App() {
                             renderItem={({item}) => (
                               <UserCard 
                                 item={item} 
-                                onSelect={setSelectedUser} 
+                                onSelect={handleProfileView} 
                                 onToggleLike={toggleLike} 
                               />
                             )} 
                             numColumns={2} 
                             keyExtractor={item => item.id}
-                            contentContainerStyle={{ padding: 4 }}
+                            contentContainerStyle={{ padding: 4, paddingBottom: 80 }}
                             ListEmptyComponent={
                               <Text className="text-center mt-12 text-gray-400">
                                 No results found in your area.
@@ -512,6 +577,20 @@ export default function App() {
                               <Text className="text-white font-bold">Next</Text>
                             </TouchableOpacity>
                           </View>
+
+                          <TouchableOpacity 
+                            onPress={() => { setTab('favorites'); setFavTab('viewed_me'); }}
+                            className="absolute bottom-24 right-6 bg-white/70 border border-white/60 rounded-full px-5 py-3 flex-row items-center shadow-lg backdrop-blur-md"
+                            style={{ elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8 }}
+                          >
+                            <Text className="text-[20px] mr-2">👁️</Text>
+                            <Text className="font-black text-gray-800 tracking-tight">
+                              {viewedMeProfiles.length} Views
+                            </Text>
+                            {viewedMeProfiles.length > 0 && (
+                              <View className="absolute top-0 right-0 bg-red-500 w-3 h-3 rounded-full border border-white" />
+                            )}
+                          </TouchableOpacity>
                         </>
                       )}
 
@@ -586,28 +665,92 @@ export default function App() {
                     />
                   )}
 
+                  {/* LIKES & VIEWS TAB */}
                   {tab === 'favorites' && (
-                    <View className="flex-1">
-                      <Text className="text-2xl font-bold p-4 text-gray-800">
-                        My Favorites ({favoriteProfiles.length})
-                      </Text>
-                      <FlatList 
-                        data={favoriteProfiles} 
-                        renderItem={({item}) => (
-                          <UserCard 
-                            item={item} 
-                            onSelect={setSelectedUser} 
-                            onToggleLike={toggleLike} 
-                          />
-                        )} 
-                        numColumns={2} 
-                        keyExtractor={item => item.id} 
-                        ListEmptyComponent={
-                          <Text className="text-center mt-12 text-gray-400">
-                            You haven't liked anyone yet.
-                          </Text>
-                        }
-                      />
+                    <View className="flex-1 bg-gray-50">
+                      <View className="flex-row border-b border-gray-200 bg-white">
+                        <TouchableOpacity 
+                          onPress={() => setFavTab('my_likes')} 
+                          className={`flex-1 p-4 items-center ${favTab === 'my_likes' ? 'border-b-2 border-green-500' : ''}`}
+                        >
+                          <Text className={`font-bold ${favTab === 'my_likes' ? 'text-green-500' : 'text-gray-400'}`}>❤️ I Liked</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                          onPress={() => setFavTab('liked_me')} 
+                          className={`flex-1 p-4 items-center ${favTab === 'liked_me' ? 'border-b-2 border-green-500' : ''}`}
+                        >
+                          <Text className={`font-bold ${favTab === 'liked_me' ? 'text-green-500' : 'text-gray-400'}`}>✨ Liked Me</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                          onPress={() => setFavTab('viewed_me')} 
+                          className={`flex-1 p-4 items-center ${favTab === 'viewed_me' ? 'border-b-2 border-green-500' : ''}`}
+                        >
+                          <Text className={`font-bold ${favTab === 'viewed_me' ? 'text-green-500' : 'text-gray-400'}`}>👁️ Viewed Me</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {favTab === 'my_likes' && (
+                        <FlatList 
+                          data={favoriteProfiles} 
+                          renderItem={({item}) => (
+                            <UserCard 
+                              item={item} 
+                              onSelect={handleProfileView} 
+                              onToggleLike={toggleLike} 
+                            />
+                          )} 
+                          numColumns={2} 
+                          keyExtractor={item => item.id} 
+                          ListEmptyComponent={
+                            <Text className="text-center mt-12 text-gray-400">
+                              You haven't liked anyone yet.
+                            </Text>
+                          }
+                        />
+                      )}
+
+                      {/* PAYWALLED TABS */}
+                      {(favTab === 'liked_me' || favTab === 'viewed_me') && (
+                        <View className="flex-1">
+                          {isVip || isAdmin ? (
+                            <FlatList 
+                              data={favTab === 'liked_me' ? likedMeProfiles : viewedMeProfiles} 
+                              renderItem={({item}) => (
+                                <UserCard 
+                                  item={item} 
+                                  onSelect={handleProfileView} 
+                                  onToggleLike={toggleLike} 
+                                />
+                              )} 
+                              numColumns={2} 
+                              keyExtractor={item => item.id}
+                              ListEmptyComponent={
+                                <Text className="text-center mt-12 text-gray-400">
+                                  {favTab === 'liked_me' ? "No likes yet." : "No profile views yet."}
+                                </Text>
+                              }
+                            />
+                          ) : (
+                            <View className="flex-1 items-center justify-center p-6 bg-gray-50">
+                              <Text className="text-6xl mb-4">🔒</Text>
+                              <Text className="text-2xl font-black text-black text-center mb-2">Premium Feature</Text>
+                              <Text className="text-gray-500 text-center mb-8 font-bold leading-6">
+                                {favTab === 'liked_me' 
+                                  ? "Subscribe to see everyone who swiped right on you." 
+                                  : "Subscribe to see exactly who is looking at your profile in real-time."}
+                              </Text>
+                              <TouchableOpacity 
+                                onPress={() => setShowPaywall(true)} 
+                                className="bg-green-500 w-full py-4 rounded-full items-center shadow-lg shadow-green-500/30"
+                              >
+                                <Text className="text-white font-black text-lg">Unlock VIP Now</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                      )}
                     </View>
                   )}
 
@@ -620,9 +763,19 @@ export default function App() {
                   )}
 
                   {tab === 'settings' && (
-                    <View className="flex-1">
+                    <View className="flex-1 bg-gray-50">
+                      <View className="px-4">
+                        <InvisibleModeToggle 
+                          isPrivate={isPrivate} 
+                          toggleInvisibleMode={toggleInvisibleMode} 
+                          isVip={isVip} 
+                          isAdmin={isAdmin} 
+                          setShowPaywall={setShowPaywall} 
+                        />
+                      </View>
+
                       {showEditProfile ? (
-                        <View className="flex-1 bg-white">
+                        <View className="flex-1 bg-white mt-4 rounded-t-3xl overflow-hidden shadow-lg">
                           <View className="p-4 border-b border-gray-200 bg-gray-50 flex-row items-center shadow-sm z-10">
                             <TouchableOpacity 
                               onPress={() => setShowEditProfile(false)} 
@@ -646,13 +799,17 @@ export default function App() {
                           />
                         </View>
                       ) : (
-                        <UserDashboard 
-                          myName={myName} 
-                          myCity={myCity} 
-                          isVip={isVip} 
-                          setShowPaywall={setShowPaywall} 
-                          openEditProfile={() => setShowEditProfile(true)}
-                        />
+                        <View className="flex-1 bg-white mt-4 rounded-t-3xl overflow-hidden shadow-lg">
+                          {/* 🚀 PASSING receivedGifts TO DASHBOARD 🚀 */}
+                          <UserDashboard 
+                            myName={myName} 
+                            myCity={myCity} 
+                            isVip={isVip} 
+                            setShowPaywall={setShowPaywall} 
+                            openEditProfile={() => setShowEditProfile(true)}
+                            receivedGifts={receivedGifts} 
+                          />
+                        </View>
                       )}
                     </View>
                   )}
@@ -680,7 +837,6 @@ export default function App() {
                   ))}
                 </View>
 
-                {/* 🚀 PASSING handleAddFriend DOWN TO MODALS 🚀 */}
                 <AllModals 
                   showFilters={showFilters} 
                   setShowFilters={setShowFilters} 
@@ -704,6 +860,7 @@ export default function App() {
                   handleSendMessage={handleSendMessage}
                   handleStartVideoCall={handleStartVideoCall} 
                   handleAddFriend={handleAddFriend}
+                  handleSendGift={handleSendGift} 
                 />
 
                 <Subscription 

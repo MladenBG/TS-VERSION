@@ -187,14 +187,6 @@ export const EditProfile = ({
         {/* SETTINGS TOGGLES */}
         <View className="flex-row justify-between items-center my-4 pb-4 border-b border-[#F5F5F5] px-[15px]">
           <View>
-            <Text className="text-[#333] font-bold text-[16px]">Private Profile</Text>
-            <Text className="text-[12px] text-[#999]">Hide your profile from discovery</Text>
-          </View>
-          <Switch value={isPrivate} onValueChange={setIsPrivate} trackColor={{true: '#4CAF50'}} />
-        </View>
-
-        <View className="flex-row justify-between items-center my-4 pb-4 border-b border-[#F5F5F5] px-[15px]">
-          <View>
             <Text className="text-[#333] font-bold text-[16px]">Global Notifications</Text>
             <Text className="text-[12px] text-[#999]">Alerts for matches and lobby</Text>
           </View>

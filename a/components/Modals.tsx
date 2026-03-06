@@ -13,7 +13,8 @@ export const AllModals = ({
   selectedUser, setSelectedUser, toggleLike, profiles, setChatUser,
   chatUser, setChatUserModal, messages, chatInput, setChatInput, handleSendMessage,
   navigation, // This is the navigationRef from App.tsx
-  handleAddFriend // 🚀 ADDED THIS PROP
+  handleAddFriend, 
+  handleSendGift // 🚀 ADDED THE GIFT PROP 🚀
 }: any) => {
 
   return (
@@ -92,7 +93,7 @@ export const AllModals = ({
                   <Text className="text-[16px] text-[#666] mt-1">{selectedUser.town} • {selectedUser.gender} ({selectedUser.sexuality})</Text>
                   <Text className="text-[16px] text-[#444] mt-[15px] leading-6">{selectedUser.bio}</Text>
                   
-                  {/* 🚀 THE NEW VIP ADD FRIEND BUTTON 🚀 */}
+                  {/* 🚀 THE VIP ADD FRIEND BUTTON 🚀 */}
                   <TouchableOpacity 
                     onPress={() => handleAddFriend(selectedUser)}
                     className="w-full bg-[#E8F5E9] p-[15px] rounded-[15px] items-center flex-row justify-center mt-[20px] border-2 border-[#4CAF50]"
@@ -100,6 +101,22 @@ export const AllModals = ({
                     <Text className="text-[20px] mr-2">🤝</Text>
                     <Text className="text-[16px] font-bold text-[#4CAF50]">Add as Friend (VIP)</Text>
                   </TouchableOpacity>
+
+                  {/* 🚀 SEND GIFT SECTION 🚀 */}
+                  <View className="mt-[20px] bg-pink-50/50 p-5 rounded-[20px] border border-pink-100">
+                    <Text className="text-[11px] font-black mb-4 text-pink-400 text-center tracking-widest uppercase">Send a Private Gift</Text>
+                    <View className="flex-row justify-center items-center">
+                      {['🌹', '💍', '🐻', '🥂'].map(gift => (
+                        <TouchableOpacity 
+                          key={gift}
+                          onPress={() => handleSendGift(selectedUser, gift)}
+                          className="bg-white w-14 h-14 rounded-full border border-pink-200 shadow-sm mx-2 items-center justify-center elevation-2"
+                        >
+                          <Text className="text-[28px]">{gift}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
 
                   <View className="mt-[30px]">
                     <Text className="text-[18px] font-bold mb-[15px] text-black">{selectedUser.name.split(' ')[0]}'s Top Connections</Text>

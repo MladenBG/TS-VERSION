@@ -7,13 +7,13 @@ export async function GET() {
     const adminRes = await pool.query("SELECT id FROM users WHERE email = 'admin@test.com'");
     const adminId = adminRes.rows[0]?.id;
 
-    // 2. Fetch all users EXCEPT you, and check if you liked them!
+    // 2. Fetch all users EXCEPT you, AND mathematically exclude anyone using VIP Invisible Mode!
     const usersRes = await pool.query(`
       SELECT 
         u.*,
         EXISTS(SELECT 1 FROM likes l WHERE l.user_id = $1 AND l.liked_user_id = u.id) as "isFavorite"
       FROM users u
-      WHERE u.id != $1
+      WHERE u.id != $1 AND u.is_invisible = FALSE
     `, [adminId]);
 
     return NextResponse.json(usersRes.rows, { status: 200 });
