@@ -12,7 +12,8 @@ export const AllModals = ({
   showFilters, setShowFilters, filterGender, setFilterGender, filterSexuality, setFilterSexuality, SEXUALITIES, setCurrentPage,
   selectedUser, setSelectedUser, toggleLike, profiles, setChatUser,
   chatUser, setChatUserModal, messages, chatInput, setChatInput, handleSendMessage,
-  navigation // This is the navigationRef from App.tsx
+  navigation, // This is the navigationRef from App.tsx
+  handleAddFriend // 🚀 ADDED THIS PROP
 }: any) => {
 
   return (
@@ -91,6 +92,15 @@ export const AllModals = ({
                   <Text className="text-[16px] text-[#666] mt-1">{selectedUser.town} • {selectedUser.gender} ({selectedUser.sexuality})</Text>
                   <Text className="text-[16px] text-[#444] mt-[15px] leading-6">{selectedUser.bio}</Text>
                   
+                  {/* 🚀 THE NEW VIP ADD FRIEND BUTTON 🚀 */}
+                  <TouchableOpacity 
+                    onPress={() => handleAddFriend(selectedUser)}
+                    className="w-full bg-[#E8F5E9] p-[15px] rounded-[15px] items-center flex-row justify-center mt-[20px] border-2 border-[#4CAF50]"
+                  >
+                    <Text className="text-[20px] mr-2">🤝</Text>
+                    <Text className="text-[16px] font-bold text-[#4CAF50]">Add as Friend (VIP)</Text>
+                  </TouchableOpacity>
+
                   <View className="mt-[30px]">
                     <Text className="text-[18px] font-bold mb-[15px] text-black">{selectedUser.name.split(' ')[0]}'s Top Connections</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -137,10 +147,9 @@ export const AllModals = ({
               </View>
 
               <View className="flex-row items-center">
-                {/* VIDEO CALL BUTTON - UPDATED LOGIC */}
+                {/* VIDEO CALL BUTTON - YOUR EXACT LOGIC REMAINS UNTOUCHED */}
                 <TouchableOpacity 
                   onPress={() => {
-                    // Check if the navigation ref is ready before navigating
                     if (navigation?.current) {
                         setChatUserModal(null);
                         navigation.current.navigate('VideoCall', { 

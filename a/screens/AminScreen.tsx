@@ -1,56 +1,111 @@
-// screens/AdminScreen.tsx
 import React from 'react';
-import { View, Text, TextInput, ScrollView, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export const AdminScreen = ({ profiles, adminSearch, setAdminSearch, onToggleBan }: any) => {
-  const filtered = profiles.filter((p: any) => p.name.toLowerCase().includes(adminSearch.toLowerCase()));
+  // Filter the profiles based on the search query
+  const filtered = profiles.filter((p: any) => 
+    p.name.toLowerCase().includes(adminSearch.toLowerCase())
+  );
 
   return (
-    <View style={{flex: 1}}>
-      <View style={styles.adminHeader}>
-        <Text style={styles.title}>Dateroot Admin Portal</Text>
-        <TextInput 
-          style={styles.adminInput} 
-          placeholder="Search user ID or Name..." 
-          value={adminSearch}
-          onChangeText={setAdminSearch}
-        />
-      </View>
-      <ScrollView style={{flex: 1}}>
-        <View style={styles.statsRow}>
-          <View style={styles.statBox}><Text style={styles.statNum}>{profiles.length}</Text><Text style={styles.label}>Users</Text></View>
-          <View style={styles.statBox}><Text style={styles.statNum}>{profiles.filter((p:any)=>p.isBanned).length}</Text><Text style={styles.label}>Banned</Text></View>
+    <SafeAreaView className="flex-1 bg-gray-50">
+      
+      {/* HEADER SECTION */}
+      <View className="p-6 bg-white border-b border-gray-200 z-10 shadow-sm">
+        <Text className="text-3xl font-black text-gray-900 mb-4 tracking-tight">
+          Admin Portal
+        </Text>
+        
+        {/* MODERN SEARCH INPUT */}
+        <View className="w-full h-12 bg-gray-100 rounded-xl flex-row items-center px-4">
+          <Feather name="search" size={18} color="#9CA3AF" />
+          <TextInput 
+            className="flex-1 ml-3 font-bold text-gray-900 h-full" 
+            placeholder="Search User Name..." 
+            placeholderTextColor="#9CA3AF"
+            value={adminSearch}
+            onChangeText={setAdminSearch}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
         </View>
-        {filtered.slice(0, 50).map((u: any) => (
-          <View key={u.id} style={styles.adminRow}>
-            <Image source={{uri: u.image}} style={styles.adminAvatar} />
-            <View style={{flex: 1}}>
-              <Text style={[styles.darkText, u.isBanned && {color: 'red'}]}>{u.name}</Text>
-              <Text style={{fontSize: 12, color: '#999'}}>{u.town}</Text>
-            </View>
-            <TouchableOpacity 
-              onPress={() => onToggleBan(u.id)}
-              style={[styles.banBtn, {backgroundColor: u.isBanned ? '#4CAF50' : '#FF3B30'}]}>
-              <Text style={styles.btnTextSmall}>{u.isBanned ? 'Unban' : 'Ban'}</Text>
-            </TouchableOpacity>
+      </View>
+
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        
+        {/* STATS DASHBOARD */}
+        <View className="flex-row p-4 justify-between mt-2">
+          <View className="flex-1 bg-white p-5 rounded-2xl shadow-sm mr-2 items-center border border-gray-100">
+            <Text className="text-3xl font-black text-gray-900">{profiles.length}</Text>
+            <Text className="text-[10px] font-black text-gray-400 mt-1 uppercase tracking-wider">
+              Total Users
+            </Text>
           </View>
-        ))}
+          
+          <View className="flex-1 bg-white p-5 rounded-2xl shadow-sm ml-2 items-center border border-gray-100">
+            <Text className="text-3xl font-black text-red-500">
+              {profiles.filter((p: any) => p.isBanned).length}
+            </Text>
+            <Text className="text-[10px] font-black text-gray-400 mt-1 uppercase tracking-wider">
+              Banned Users
+            </Text>
+          </View>
+        </View>
+
+        {/* USERS LIST */}
+        <View className="px-4 pb-10 mt-2">
+          {filtered.slice(0, 50).map((u: any) => (
+            <View 
+              key={u.id} 
+              className="flex-row items-center bg-white p-4 mb-3 rounded-2xl shadow-sm border border-gray-100"
+            >
+              <Image 
+                source={{ uri: u.image }} 
+                className="w-14 h-14 rounded-full mr-4 bg-gray-200" 
+              />
+              
+              <View className="flex-1 justify-center">
+                <Text 
+                  className={`font-black text-lg mb-0.5 ${u.isBanned ? 'text-red-400 line-through' : 'text-gray-900'}`}
+                >
+                  {u.name}
+                </Text>
+                <Text className="text-xs font-bold text-gray-400">
+                  {u.town}
+                </Text>
+              </View>
+              
+              <TouchableOpacity 
+                onPress={() => onToggleBan(u.id)}
+                activeOpacity={0.7}
+                className={`px-4 py-2.5 rounded-full border ${
+                  u.isBanned 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-red-50 border-red-200'
+                }`}
+              >
+                <Text 
+                  className={`font-black text-[11px] tracking-wider ${
+                    u.isBanned ? 'text-green-600' : 'text-red-600'
+                  }`}
+                >
+                  {u.isBanned ? 'UNBAN' : 'BAN'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          {/* EMPTY STATE */}
+          {filtered.length === 0 && (
+            <View className="items-center justify-center mt-10">
+              <Feather name="users" size={40} color="#D1D5DB" />
+              <Text className="text-gray-400 font-bold mt-4">No users found.</Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  adminHeader: { padding: 10, backgroundColor: '#F9F9F9', borderBottomWidth: 1, borderColor: '#EEE' },
-  title: { fontSize: 24, fontWeight: 'bold', padding: 15, color: '#333' },
-  adminInput: { height: 45, backgroundColor: '#FFF', borderRadius: 10, paddingHorizontal: 15, borderWidth: 1, borderColor: '#DDD', marginHorizontal: 15, marginBottom: 10 },
-  adminRow: { flexDirection: 'row', padding: 15, borderBottomWidth: 1, borderColor: '#EEE', alignItems: 'center' },
-  adminAvatar: { width: 45, height: 45, borderRadius: 22.5, marginRight: 15 },
-  statsRow: { flexDirection: 'row', padding: 15, justifyContent: 'space-around' },
-  statBox: { alignItems: 'center' },
-  statNum: { fontSize: 20, fontWeight: 'bold', color: '#4CAF50' },
-  label: { fontSize: 12, color: '#999' },
-  darkText: { color: '#333', fontWeight: 'bold', fontSize: 16 },
-  banBtn: { paddingVertical: 8, paddingHorizontal: 15, borderRadius: 8 },
-  btnTextSmall: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
-});

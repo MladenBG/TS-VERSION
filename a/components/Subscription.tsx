@@ -11,8 +11,15 @@ export const Subscription = ({ showPaywall, setShowPaywall, handlePayment }: any
     setIsProcessing(true);
     try {
       // This line literally opens the Google Play payment sheet at the bottom of the Android phone
-      // Replace 'dateroot_weekly' and 'dateroot_monthly' with the exact IDs you make in Google Play Console
-      const productId = planIdentifier === 'Weekly' ? 'dateroot_weekly' : 'dateroot_monthly';
+      // Replace these with the exact IDs you make in Google Play Console
+      let productId = '';
+      if (planIdentifier === 'Daily') {
+        productId = 'dateroot_daily';
+      } else if (planIdentifier === 'Weekly') {
+        productId = 'dateroot_weekly';
+      } else {
+        productId = 'dateroot_monthly';
+      }
       
       // UNCOMMENT THIS LINE WHEN YOUR GOOGLE PLAY ACCOUNT IS LINKED:
       // const { customerInfo } = await Purchases.purchaseProduct(productId);
@@ -59,11 +66,27 @@ export const Subscription = ({ showPaywall, setShowPaywall, handlePayment }: any
           <Text className="text-center mb-[30px] text-[#666]">
             Unlock Swipe Mode, Radar, and Unlimited Messaging
           </Text>
+
+          {/* DAILY PLAN (NEW) */}
+          <View className="w-full p-[25px] rounded-[20px] bg-[#F9F9F9] my-2.5">
+            <Text className="text-[20px] font-bold text-black">24 Hour Pass</Text>
+            <Text className="text-[28px] font-[900] my-2.5 text-black">$4.00</Text>
+            <Text className="text-[12px] text-[#999]">Valid for 1 Day</Text>
+            <TouchableOpacity 
+              className="bg-[#4CAF50] p-[15px] rounded-[12px] items-center mt-[15px]" 
+              onPress={() => triggerGooglePay('Daily')}
+              disabled={isProcessing}
+            >
+              <Text className="text-white font-bold">
+                {isProcessing ? "Connecting to Google Pay..." : "Pay $4 with Google Play"}
+              </Text>
+            </TouchableOpacity>
+          </View>
           
           {/* WEEKLY PLAN */}
           <View className="w-full p-[25px] rounded-[20px] bg-[#F9F9F9] my-2.5">
             <Text className="text-[20px] font-bold text-black">Weekly Access</Text>
-            <Text className="text-[28px] font-[900] my-2.5 text-black">$4.99</Text>
+            <Text className="text-[28px] font-[900] my-2.5 text-black">$7.00</Text>
             <Text className="text-[12px] text-[#999]">Renews every 7 days</Text>
             <TouchableOpacity 
               className="bg-[#4CAF50] p-[15px] rounded-[12px] items-center mt-[15px]" 
@@ -71,7 +94,7 @@ export const Subscription = ({ showPaywall, setShowPaywall, handlePayment }: any
               disabled={isProcessing}
             >
               <Text className="text-white font-bold">
-                {isProcessing ? "Connecting to Google Pay..." : "Subscribe with Google Play"}
+                {isProcessing ? "Connecting to Google Pay..." : "Pay $7 with Google Play"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -82,22 +105,22 @@ export const Subscription = ({ showPaywall, setShowPaywall, handlePayment }: any
               <Text className="text-white text-[10px] font-bold">BEST VALUE</Text>
             </View>
             <Text className="text-[20px] font-bold text-black">Monthly Gold</Text>
-            <Text className="text-[28px] font-[900] my-2.5 text-black">$14.99</Text>
-            <Text className="text-[12px] text-[#999]">Less than $0.50 a day</Text>
+            <Text className="text-[28px] font-[900] my-2.5 text-black">$15.00</Text>
+            <Text className="text-[12px] text-[#999]">Renews every month</Text>
             <TouchableOpacity 
               className="bg-black p-[15px] rounded-[12px] items-center mt-[15px]" 
               onPress={() => triggerGooglePay('Monthly')}
               disabled={isProcessing}
             >
               <Text className="text-white font-bold">
-                {isProcessing ? "Connecting to Google Pay..." : "Subscribe with Google Play"}
+                {isProcessing ? "Connecting to Google Pay..." : "Pay $15 with Google Play"}
               </Text>
             </TouchableOpacity>
           </View>
           
           {/* RESTORE PURCHASES */}
           <TouchableOpacity onPress={restoreGooglePurchases} disabled={isProcessing}>
-            <Text className="text-[#999] mt-5">Restore Google Play Purchases</Text>
+            <Text className="text-[#999] mt-5 mb-10">Restore Google Play Purchases</Text>
           </TouchableOpacity>
 
         </ScrollView>

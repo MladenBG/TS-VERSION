@@ -1,65 +1,124 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
-import SwipeCardStack from '../components/SwipeCardStack'; 
-import RadarView from '../components/RadarView';
+import React from 'react';
+import { View, Image, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Define the two modes for TypeScript
-type DiscoveryMode = 'manual' | 'auto';
+// 🚀 IMPORTING THE DOWNLOADED UI COMPONENTS 🚀
+import { Button, Text, Provider as PaperProvider, MD3LightTheme } from 'react-native-paper';
 
-const HomeScreen: React.FC = () => {
-  const [mode, setMode] = useState<DiscoveryMode>('manual');
+// Setting up a modern, premium theme color for the downloaded components
+const theme = {
+  ...MD3LightTheme,
+  colors: {
+    ...MD3LightTheme.colors,
+    primary: '#F43F5E', // Premium Rose Red
+    outline: '#E5E7EB', // Soft gray for outlines
+  },
+};
 
+export const HomeScreen = ({ navigation }: any) => {
   return (
-    <SafeAreaView style={styles.container}>
-      {/* MODE SWITCHER AT THE TOP */}
-      <View style={styles.header}>
-        <View style={styles.switcherContainer}>
-          <TouchableOpacity 
-            style={[styles.tab, mode === 'manual' && styles.activeTab]}
-            onPress={() => setMode('manual')}
-          >
-            <Text style={[styles.tabText, mode === 'manual' && styles.activeText]}>Manual</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.tab, mode === 'auto' && styles.activeTab]}
-            onPress={() => setMode('auto')}
-          >
-            <Text style={[styles.tabText, mode === 'auto' && styles.activeText]}>Auto Radar</Text>
-          </TouchableOpacity>
+    <PaperProvider theme={theme}>
+      <SafeAreaView style={styles.container}>
+        
+        {/* LOGO */}
+        <View style={styles.logoContainer}>
+          <Image 
+            source={require('../assets/logo.png')} 
+            style={styles.logo} 
+            resizeMode="contain" 
+          />
         </View>
-      </View>
 
-      {/* CONTENT AREA */}
-      <View style={styles.content}>
-        {mode === 'manual' ? (
-          <SwipeCardStack />  
-        ) : (
-          <RadarView />       
-        )}
-      </View>
-    </SafeAreaView>
+        {/* TYPOGRAPHY COMPONENTS FROM UI LIBRARY */}
+        <View style={styles.content}>
+          <Text variant="displayMedium" style={styles.headline}>
+            Meet your person.
+          </Text>
+          <Text variant="titleMedium" style={styles.subtitle}>
+            The premium dating network. No noise, just genuine connections.
+          </Text>
+        </View>
+
+        {/* 🚀 REAL PRE-BUILT BUTTON COMPONENTS 🚀 */}
+        <View style={styles.buttonContainer}>
+          
+          {/* Solid "Contained" Button */}
+          <Button 
+            mode="contained" 
+            onPress={() => navigation.navigate('SignUp')}
+            contentStyle={styles.buttonContent}
+            style={styles.button}
+            labelStyle={styles.buttonLabel}
+          >
+            Create Account
+          </Button>
+
+          {/* Outlined "Web Style" Button */}
+          <Button 
+            mode="outlined" 
+            onPress={() => navigation.navigate('Login')}
+            contentStyle={styles.buttonContent}
+            style={styles.button}
+            labelStyle={styles.buttonLabelDark}
+          >
+            Sign In
+          </Button>
+
+        </View>
+      </SafeAreaView>
+    </PaperProvider>
   );
 };
 
+// Clean, standard styling to arrange the downloaded components
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' }, // Dark theme looks better for Radar
-  header: { paddingVertical: 20, alignItems: 'center' },
-  switcherContainer: { 
-    flexDirection: 'row', 
-    backgroundColor: '#333', 
-    borderRadius: 25, 
-    padding: 4 
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
-  tab: { 
-    paddingVertical: 10, 
-    paddingHorizontal: 25, 
-    borderRadius: 21 
+  logoContainer: {
+    marginTop: 20,
+    alignItems: 'flex-start',
   },
-  activeTab: { backgroundColor: '#FF4B6E' }, // DateRoot Brand Pink
-  tabText: { color: '#888', fontWeight: 'bold' },
-  activeText: { color: '#FFF' },
-  content: { flex: 1 }
+  logo: {
+    width: 120,
+    height: 40,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  headline: {
+    fontWeight: '900',
+    color: '#000000',
+    marginBottom: 16,
+    lineHeight: 52,
+  },
+  subtitle: {
+    color: '#6B7280',
+    fontWeight: 'bold',
+  },
+  buttonContainer: {
+    width: '100%',
+  },
+  button: {
+    marginBottom: 16,
+    borderRadius: 50, // Perfect pill shape
+  },
+  buttonContent: {
+    height: 60, // Tall, modern button height
+  },
+  buttonLabel: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  buttonLabelDark: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    color: '#000000',
+  }
 });
-
-export default HomeScreen;

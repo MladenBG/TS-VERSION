@@ -261,7 +261,9 @@ or
 
 npx expo start
 
+or
 
+npx expo start --no-dev
 
 
 SEND TO REPO
@@ -336,3 +338,26 @@ handlePayment(planIdentifier);
 ZEGO CLOUD video chat
 
 npm install @zegocloud/zego-uikit-prebuilt-call-rn @zegocloud/zego-uikit-rn zego-express-engine-reactnative react-delegate-component
+
+
+psql -U postgres
+
+
+\c dateroot
+
+\d users umesto \d profiles
+
+
+npm install bcrypt
+npm install -D @types/bcrypt
+
+npx expo install expo-linear-gradient
+
+npm install react-native-paper
+
+
+
+for backend dateroot-backend
+
+
+npm run dev
