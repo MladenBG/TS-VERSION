@@ -53,7 +53,7 @@ export const UserDashboard = ({
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1], // Perfect square crop for the circle avatar
       quality: 1,

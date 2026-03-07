@@ -26,6 +26,8 @@ export const EditProfile = ({
   setShowPaywall 
 }: any) => {
   
+  const currentUserId = "my_test_id"; // 🚨 Same test ID we used in SafetyMenu.tsx
+
   // --- LOCAL STATE FOR PROFILE FIELDS ---
   const [bio, setBio] = useState('');
   const [country, setCountry] = useState('Serbia');
@@ -52,6 +54,10 @@ export const EditProfile = ({
   const [pickerTitle, setPickerTitle] = useState('');
   const [currentField, setCurrentField] = useState('');
 
+  // 🚀 --- BLOCKED USERS STATE --- 🚀
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
+
   const openPicker = (title: string, data: string[], field: string) => {
     setPickerTitle(title);
     setPickerData(data);
@@ -76,7 +82,6 @@ export const EditProfile = ({
     setPickerVisible(false);
   };
 
-  // 🚀 REAL CLOUDFLARE UPLOAD LOGIC 🚀
   const handleImageUpload = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
@@ -86,32 +91,27 @@ export const EditProfile = ({
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'], 
       allowsEditing: true,
-      aspect: [1, 1], // Perfect square crop for circular avatar
+      aspect: [1, 1],
       quality: 1,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setIsUploading(true);
       try {
-        // 1. Squash Image to WebP
         const manipResult = await ImageManipulator.manipulateAsync(
           result.assets[0].uri,
-          [{ resize: { width: 500 } }], // Resize for avatar
+          [{ resize: { width: 500 } }],
           { compress: 0.7, format: ImageManipulator.SaveFormat.WEBP }
         );
 
-        // 2. Ask Node server for Cloudflare ticket (Make sure port is 3001!)
-        // 🚨 Change 10.0.2.2 to your laptop's real IP if testing on a physical phone
         const response = await fetch('http://10.0.2.2:3001/api/get-upload-url');
         const { uploadUrl, publicUrl } = await response.json();
 
-        // 3. Turn into Blob
         const imageResponse = await fetch(manipResult.uri);
         const blob = await imageResponse.blob();
         
-        // 4. Send directly to Cloudflare R2
         const uploadRes = await fetch(uploadUrl, {
           method: 'PUT',
           body: blob,
@@ -119,7 +119,7 @@ export const EditProfile = ({
         });
 
         if (uploadRes.ok) {
-          setAvatarUrl(publicUrl); // Instantly update the image on screen!
+          setAvatarUrl(publicUrl);
           Alert.alert("Looking Good!", "Profile picture successfully updated.");
         } else {
           throw new Error("Cloudflare rejected the upload");
@@ -130,6 +130,37 @@ export const EditProfile = ({
       } finally {
         setIsUploading(false);
       }
+    }
+  };
+
+  // 🚀 FETCH BLOCKED USERS WHEN THEY OPEN THE MODAL
+  const openBlockedUsers = async () => {
+    setShowBlockedModal(true);
+    try {
+      const res = await fetch(`http://10.0.2.2:3001/api/blocks/${currentUserId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBlockedUsers(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch blocked users");
+    }
+  };
+
+  // 🚀 UNBLOCK A USER
+  const handleUnblock = async (blockedId: string) => {
+    try {
+      const res = await fetch('http://10.0.2.2:3001/api/unblock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blockerId: currentUserId, blockedId })
+      });
+      if (res.ok) {
+        setBlockedUsers(prev => prev.filter(u => u.id !== blockedId));
+        Alert.alert("Unblocked", "This person has been removed from your block list.");
+      }
+    } catch (e) {
+      Alert.alert("Error", "Could not unblock user.");
     }
   };
 
@@ -199,58 +230,6 @@ export const EditProfile = ({
           </View>
         </View>
 
-        {/* PHYSICAL TRAITS */}
-        <View className="flex-row justify-between items-center">
-          <View className="flex-1">
-            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Height</Text>
-            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Height', HEIGHT_OPTIONS, 'height')}>
-              <Text className="text-[#333] text-[14px]">{height}</Text>
-            </TouchableOpacity>
-          </View>
-          <View className="flex-1">
-            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Weight</Text>
-            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Weight', WEIGHT_OPTIONS, 'weight')}>
-              <Text className="text-[#333] text-[14px]">{weight}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View className="flex-row justify-between items-center">
-          <View className="flex-1">
-            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Hair Color</Text>
-            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Hair Color', HAIR_OPTIONS, 'hair')}>
-              <Text className="text-[#333] text-[14px]">{hairColor}</Text>
-            </TouchableOpacity>
-          </View>
-          <View className="flex-1">
-            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Eye Color</Text>
-            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Eye Color', EYE_OPTIONS, 'eye')}>
-              <Text className="text-[#333] text-[14px]">{eyeColor}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* PERSONAL DETAILS */}
-        <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Body Type</Text>
-        <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Body Type', BODY_TYPE_OPTIONS, 'bodyType')}>
-          <Text className="text-[#333] text-[14px]">{bodyType}</Text>
-        </TouchableOpacity>
-
-        <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Sexuality</Text>
-        <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Sexuality', SEXUALITY_OPTIONS, 'sexuality')}>
-          <Text className="text-[#333] text-[14px]">{sexuality}</Text>
-        </TouchableOpacity>
-
-        <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Education</Text>
-        <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Education', EDUCATION_OPTIONS, 'education')}>
-          <Text className="text-[#333] text-[14px]">{education}</Text>
-        </TouchableOpacity>
-
-        <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Favorite Music</Text>
-        <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Favorite Music', MUSIC_OPTIONS, 'music')}>
-          <Text className="text-[#333] text-[14px]">{music}</Text>
-        </TouchableOpacity>
-
         {/* SETTINGS TOGGLES */}
         <View className="flex-row justify-between items-center my-4 pb-4 border-b border-[#F5F5F5] px-[15px]">
           <View>
@@ -263,6 +242,11 @@ export const EditProfile = ({
         {/* BUTTONS */}
         <TouchableOpacity className="bg-[#4CAF50] p-[18px] rounded-[150px] items-center m-[15px]" onPress={() => Alert.alert("Dateroot", "Profile Updated Successfully!")}>
           <Text className="text-white font-bold">Save Profile Changes</Text>
+        </TouchableOpacity>
+
+        {/* 🚀 THE NEW MANAGE BLOCKED USERS BUTTON 🚀 */}
+        <TouchableOpacity className="bg-red-50 p-[18px] rounded-[150px] items-center mx-[15px] mb-[15px] border border-red-200" onPress={openBlockedUsers}>
+          <Text className="text-red-600 font-bold">🚫 Manage Blocked Users</Text>
         </TouchableOpacity>
 
         <TouchableOpacity className="bg-black p-[18px] rounded-[150px] items-center m-[15px] mb-[50px]" onPress={() => setShowPaywall(true)}>
@@ -292,6 +276,44 @@ export const EditProfile = ({
           </View>
         </View>
       </Modal>
+
+      {/* 🚀 BLOCKED USERS LIST MODAL 🚀 */}
+      <Modal visible={showBlockedModal} animationType="slide" transparent={true}>
+        <View className="flex-1 bg-black/60 justify-end">
+          <View className="bg-white rounded-t-[24px] h-[70%] p-5 pb-10">
+            <View className="flex-row justify-between items-center mb-4 border-b border-gray-100 pb-4">
+              <Text className="text-[20px] font-black text-gray-800">🚫 Blocked Accounts</Text>
+              <TouchableOpacity onPress={() => setShowBlockedModal(false)}>
+                <Text className="text-[24px] text-gray-400 font-bold">✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {blockedUsers.length === 0 ? (
+              <Text className="text-center text-gray-400 font-bold mt-10 text-lg">You haven't blocked anyone.</Text>
+            ) : (
+              <FlatList 
+                data={blockedUsers}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({item}) => (
+                  <View className="flex-row items-center justify-between p-4 mb-2 bg-gray-50 rounded-2xl border border-gray-100">
+                    <View className="flex-row items-center flex-1">
+                      <Image source={{uri: item.image}} className="w-[45px] h-[45px] rounded-full mr-3 border border-gray-200" />
+                      <Text className="font-bold text-gray-800 text-[16px] flex-shrink" numberOfLines={1}>{item.name}</Text>
+                    </View>
+                    <TouchableOpacity 
+                      onPress={() => handleUnblock(item.id)}
+                      className="bg-gray-200 py-2.5 px-5 rounded-full"
+                    >
+                      <Text className="font-bold text-gray-700 text-xs">Unblock</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 };

@@ -30,7 +30,7 @@ export const ImageGallery = ({ initialImages = [], isPublicView = false }: Image
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [4, 4], 
       quality: 1, 
