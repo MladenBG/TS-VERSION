@@ -50,3 +50,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
   }
 }
+
+// 🗑️ DELETE: Remove a message by ID
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Message ID is required' }, { status: 400 });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM private_messages WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, deleted: result.rows[0] }, { status: 200 });
+  } catch (error) {
+    console.error("Delete Error:", error);
+    return NextResponse.json({ error: 'Failed to delete message' }, { status: 500 });
+  }
+}

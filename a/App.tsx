@@ -18,7 +18,6 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createNavigationContainerRef } from '@react-navigation/native';
 import io from 'socket.io-client';
 
-// IMPORTING FULL DATA AND COMPONENTS
 import { 
   ALL_PROFILES, 
   width, 
@@ -30,7 +29,6 @@ import {
 import { UserCard } from './components/UserCard';
 import { AllModals } from './components/Modals';
 
-// IMPORTING SEPARATED COMPONENTS
 import { Lobby } from './components/Lobby';
 import { HeaderSwipe } from './components/HeaderSwipe';
 import { SwipeButton } from './components/SwipeButton';
@@ -38,20 +36,19 @@ import { Subscription } from './components/Subscription';
 import { EditProfile } from './components/EditProfile';
 import { UserDashboard } from './components/UserDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
-import { VideoCall } from './components/VideoCall';
+import { CloudflareVideoCall } from './components/CloudflareVideoCall'; 
 import { Inbox } from './components/Inbox';
 import { InvisibleModeToggle } from './components/InvisibleModeToggle';
 
-// AUTH SCREENS
 import { HomeScreen } from './screens/HomeScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { SignUpScreen } from './screens/SignUpScreen';
 
-// This allows the app to actually use the provider
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 
 const logoImg = require('./assets/logo.png');
-const socket = io("http://localhost:3000");
+// 🚀 FIXED: EXPORTED SOCKET & CHANGED TO 10.0.2.2 FOR EMULATOR
+export const socket = io("http://10.0.2.2:3001");
 const Stack = createStackNavigator();
 
 export const navigationRef = createNavigationContainerRef();
@@ -75,7 +72,6 @@ export default function App() {
   const [likedMeProfiles, setLikedMeProfiles] = useState<any[]>([]);
   const [viewedMeProfiles, setViewedMeProfiles] = useState<any[]>([]);
   
-  // 🚀 GIFTS STATE 🚀
   const [receivedGifts, setReceivedGifts] = useState<any[]>([]);
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -125,7 +121,6 @@ export default function App() {
         const viewsData = await viewsRes.json();
         if (!viewsData.error) setViewedMeProfiles(viewsData);
 
-        // 🚀 FETCH PRIVATE GIFTS 🚀
         const giftsRes = await fetch('http://10.0.2.2:3000/api/gifts');
         const giftsData = await giftsRes.json();
         if (!giftsData.error) setReceivedGifts(giftsData);
@@ -208,60 +203,53 @@ export default function App() {
     }
   }, [discoveryMode, radarAnim]);
 
+  // 🚀 SOCKET: INCOMING CALL LISTENER 🚀
   useEffect(() => {
-    const handleReceive = (msg: any) => {
-      setLobbyMessages(prev => [msg, ...prev]);
+    socket.emit("register_user", myName); 
+
+    const handleReceiveLobby = (msg: any) => setLobbyMessages(prev => [msg, ...prev]);
+    socket.on("receive_lobby_msg", handleReceiveLobby);
+
+    const handleIncomingCall = (data: any) => {
+      Vibration.vibrate([1000, 2000, 1000, 2000]); 
+      
+      Alert.alert(
+        "📹 Incoming Video Date!",
+        `${data.callerName} is calling you via Secure Video.`,
+        [
+          { 
+            text: "Decline", 
+            style: "destructive",
+            onPress: () => {
+              Vibration.cancel();
+              socket.emit("decline_call", { callerId: data.callerId });
+            }
+          },
+          { 
+            text: "Accept", 
+            style: "default",
+            onPress: () => {
+              Vibration.cancel();
+              if (navigationRef.isReady()) {
+                (navigationRef as any).navigate('CloudflareVideoCall', { 
+                  chatUserName: data.callerName,
+                  remoteSessionId: data.cloudflareSessionId
+                });
+              }
+            }
+          }
+        ]
+      );
     };
 
-    socket.on("receive_lobby_msg", handleReceive);
+    socket.on("incoming_call", handleIncomingCall);
     
     return () => { 
-      socket.off("receive_lobby_msg", handleReceive); 
+      socket.off("receive_lobby_msg", handleReceiveLobby); 
+      socket.off("incoming_call", handleIncomingCall); 
+      Vibration.cancel();
     };
-  }, []);
-
-  useEffect(() => {
-    let ghostTimer: any;
-
-    const scheduleGhostMessage = () => {
-      const min = 30 * 60 * 1000;
-      const max = 120 * 60 * 1000;
-      const delay = Math.floor(Math.random() * (max - min + 1) + min);
-
-      ghostTimer = setTimeout(() => {
-        const randomProfile = ALL_PROFILES[Math.floor(Math.random() * ALL_PROFILES.length)];
-        const randomText = [
-          "Hey there! 👋", 
-          "Wow, great profile!", 
-          "Are you from around here?", 
-          "Hi! 😊",
-          "What are you up to today?"
-        ][Math.floor(Math.random() * 5)];
-        
-        const newMsg = {
-          id: Date.now().toString(),
-          text: randomText,
-          sender: 'them'
-        };
-
-        setMessages(prev => ({
-          ...prev,
-          [randomProfile.id]: [...(prev[randomProfile.id] || []), newMsg]
-        }));
-        
-        if (currentTab.current !== 'inbox') {
-          setUnreadCount(prev => prev + 1);
-          playNotificationSound();
-        }
-
-        scheduleGhostMessage();
-      }, delay);
-    };
-
-    scheduleGhostMessage();
-    
-    return () => clearTimeout(ghostTimer);
-  }, []);
+  }, [myName]);
 
   const filteredProfiles = useMemo(() => {
     return profiles.filter(p => {
@@ -371,6 +359,7 @@ export default function App() {
     return true;
   };
 
+  // 🚀 FIXED: TEMPORARY TO REAL ID SWAP 🚀
   const handleSendMessage = async () => {
     if (!chatInput.trim() || !chatUser) return;
     
@@ -379,23 +368,39 @@ export default function App() {
     const textToSend = chatInput;
     setChatInput('');
 
-    const newMsg = { 
-      id: Date.now().toString(), 
+    // 1. Create a TEMPORARY ID so it shows up on the screen instantly
+    const tempId = 'temp_' + Date.now().toString();
+    const tempMsg = { 
+      id: tempId, 
       text: textToSend, 
       sender: 'me' 
     };
     
     setMessages(prev => ({ 
       ...prev, 
-      [chatUser.id]: [...(prev[chatUser.id] || []), newMsg] 
+      [chatUser.id]: [...(prev[chatUser.id] || []), tempMsg] 
     }));
     
     try {
-      await fetch('http://10.0.2.2:3000/api/messages', {
+      // 2. Save it to the database
+      const res = await fetch('http://10.0.2.2:3000/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ receiver_id: chatUser.id, content: textToSend })
       });
+
+      const realDbMessage = await res.json();
+
+      // 3. Swap the Fake ID with the REAL Database ID!
+      if (realDbMessage && realDbMessage.id) {
+        setMessages(prev => {
+          const updatedChat = (prev[chatUser.id] || []).map(m => 
+            m.id === tempId ? { ...m, id: realDbMessage.id } : m
+          );
+          return { ...prev, [chatUser.id]: updatedChat };
+        });
+      }
+
     } catch (error) {
       console.error("Database connection failed for message:", error);
     }
@@ -424,8 +429,16 @@ export default function App() {
       setShowPaywall(true);
       return;
     }
+    
+    socket.emit("start_call", { 
+      callerId: myName, 
+      callerName: myName, 
+      receiverId: user.name, 
+      cloudflareSessionId: "generating..." 
+    });
+
     if (navigationRef.isReady()) {
-      (navigationRef as any).navigate('VideoCall', { user });
+      (navigationRef as any).navigate('CloudflareVideoCall', { chatUserName: user.name });
     }
   };
 
@@ -452,7 +465,6 @@ export default function App() {
     }
   };
 
-  // 🚀 HANDLE SEND GIFT 🚀
   const handleSendGift = async (user: any, giftName: string) => {
     if (!isAdmin && !isVip) {
       Alert.alert("Premium Feature", "Sending gifts is a VIP exclusive feature. Subscribe to stand out!");
@@ -535,7 +547,6 @@ export default function App() {
                 )}
 
                 <View className="flex-1">
-                  {/* DISCOVER TAB */}
                   {tab === 'discover' && (
                     <View className="flex-1 relative">
                       {discoveryMode === 'list' && (
@@ -665,7 +676,6 @@ export default function App() {
                     />
                   )}
 
-                  {/* LIKES & VIEWS TAB */}
                   {tab === 'favorites' && (
                     <View className="flex-1 bg-gray-50">
                       <View className="flex-row border-b border-gray-200 bg-white">
@@ -711,7 +721,6 @@ export default function App() {
                         />
                       )}
 
-                      {/* PAYWALLED TABS */}
                       {(favTab === 'liked_me' || favTab === 'viewed_me') && (
                         <View className="flex-1">
                           {isVip || isAdmin ? (
@@ -800,7 +809,6 @@ export default function App() {
                         </View>
                       ) : (
                         <View className="flex-1 bg-white mt-4 rounded-t-3xl overflow-hidden shadow-lg">
-                          {/* 🚀 PASSING receivedGifts TO DASHBOARD 🚀 */}
                           <UserDashboard 
                             myName={myName} 
                             myCity={myCity} 
@@ -815,7 +823,6 @@ export default function App() {
                   )}
                 </View>
 
-                {/* DYNAMIC BOTTOM NAV BAR */}
                 <View className="h-20 flex-row border-t border-gray-200 bg-white pb-2">
                   {[
                     {id: 'discover', label: 'Explore', icon: '🌍'},
@@ -837,6 +844,7 @@ export default function App() {
                   ))}
                 </View>
 
+                {/* 🚀 FIXED: ADDED setMessages PROP HERE 🚀 */}
                 <AllModals 
                   showFilters={showFilters} 
                   setShowFilters={setShowFilters} 
@@ -854,6 +862,7 @@ export default function App() {
                   chatUser={chatUser} 
                   setChatUserModal={setChatUser} 
                   messages={messages} 
+                  setMessages={setMessages} 
                   chatInput={chatInput} 
                   setChatInput={setChatInput} 
                   navigation={navigationRef}
@@ -872,7 +881,10 @@ export default function App() {
             );
           }}
         </Stack.Screen>
-        <Stack.Screen name="VideoCall" component={VideoCall} />
+
+        {/* 🚀 CLOUDFLARE VIDEO SCREEN REGISTERED HERE 🚀 */}
+        <Stack.Screen name="CloudflareVideoCall" component={CloudflareVideoCall} />
+
       </Stack.Navigator>
     </NavigationContainer>
     </SafeAreaProvider> 

@@ -361,3 +361,77 @@ for backend dateroot-backend
 
 
 npm run dev
+
+For video
+
+npm install react-native-webrtc
+
+
+
+
+cd dateroot-backend
+npm install express socket.io cors
+
+STARTING NODE JS
+
+node server.js
+
+run node server.js and npm run dev on backend
+
+
+Instaling Missing Modules
+
+npm install express socket.io cors
+
+FOR UPLOADING IMAGES
+
+npx expo install expo-image-picker
+
+FOR UPLOADING IMAGES
+
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner cors
+
+
+CONVERTING IMAGES IN WEBP
+
+npx expo install expo-image-manipulator
+
+
+
+
+
+
+That is a phenomenal question, and thinking about this now will save you hours of debugging later.
+
+The short answer is yes, both port 3000 (Next.js) and port 3001 (Socket.io) will live on your Contabo VPS.
+
+However, there is one massive trap you must fix before you compile that Android app and upload it to the Google Play Store.
+
+The "Localhost" Trap
+Right now, inside your mobile app (App.tsx), your code says:
+
+fetch('http://10.0.2.2:3000/api/users')
+
+const socket = io("http://localhost:3001")
+
+10.0.2.2 and localhost are special network codes that basically mean "look inside the computer I am currently using." If a user in London downloads your app from the Google Play Store and opens it, their phone will try to find a server inside their own phone, fail, and crash.
+
+Before you deploy to Google Play, you must change those URLs to your real Contabo VPS IP address (or domain name).
+It will look like this:
+
+fetch('http://YOUR_CONTABO_IP:3000/api/users')
+
+const socket = io("http://YOUR_CONTABO_IP:3001")
+
+How the VPS Actually Runs in Production
+When you are ready to launch, you don't just type node server.js into your Contabo terminal and leave the window open. If your internet blips or you close your laptop, the server shuts down and your entire app goes offline.
+
+When we deploy this, we will install a free production tool on your VPS called PM2 (Process Manager 2).
+PM2 takes your Next.js server and your Socket.js server, runs them silently in the background, and automatically restarts them if the server crashes or reboots.
+
+The Game Plan
+Since deployment is the very last step, you don't need to change localhost to your real IP just yet while you are still testing on your screen.
+
+Are we ready to dive back into the mobile UI and build that "Long-Press to Delete Message" feature inside the Inbox?

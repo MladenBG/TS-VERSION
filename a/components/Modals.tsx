@@ -2,20 +2,60 @@ import React from 'react';
 import { 
   Modal, View, Text, TouchableOpacity, ScrollView, 
   Image, KeyboardAvoidingView, TextInput, Platform, 
-  FlatList, Dimensions 
+  FlatList, Dimensions, Alert 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+// 🚀 IMPORT THE NEW COMPONENTS 🚀
+import { Friends } from './Friends';
+import { ImageGallery } from './ImageGallery';
+import { GiftsReceived } from './GiftsReceived';
 
 const { height } = Dimensions.get('window');
 
 export const AllModals = ({ 
   showFilters, setShowFilters, filterGender, setFilterGender, filterSexuality, setFilterSexuality, SEXUALITIES, setCurrentPage,
   selectedUser, setSelectedUser, toggleLike, profiles, setChatUser,
-  chatUser, setChatUserModal, messages, chatInput, setChatInput, handleSendMessage,
-  navigation, // This is the navigationRef from App.tsx
+  chatUser, setChatUserModal, messages, setMessages, chatInput, setChatInput, handleSendMessage,
+  navigation, 
   handleAddFriend, 
-  handleSendGift // 🚀 ADDED THE GIFT PROP 🚀
+  handleSendGift,
+  handleStartVideoCall 
 }: any) => {
+
+  // 🚀 NEW: DELETE MESSAGE LOGIC 🚀
+  const confirmDeleteMessage = (messageId: string, userId: string) => {
+    Alert.alert(
+      "Delete Message",
+      "Are you sure you want to delete this message for everyone?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive", 
+          onPress: () => deleteMessage(messageId, userId) 
+        }
+      ]
+    );
+  };
+
+  const deleteMessage = async (messageId: string, userId: string) => {
+    // 1. Remove from local screen immediately
+    const updatedMessages = (messages[userId] || []).filter((m: any) => m.id !== messageId);
+    setMessages({
+      ...messages,
+      [userId]: updatedMessages
+    });
+
+    // 2. Tell the database to delete it
+    try {
+      await fetch(`http://10.0.2.2:3000/api/messages?id=${messageId}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error("Failed to delete from DB:", error);
+    }
+  };
 
   return (
     <>
@@ -66,7 +106,7 @@ export const AllModals = ({
         </View>
       </Modal>
 
-      {/* DETAIL MODAL */}
+      {/* DETAIL MODAL (PUBLIC PROFILE) */}
       <Modal visible={!!selectedUser} animationType="slide">
         <SafeAreaView className="flex-1 bg-white">
           {selectedUser && (
@@ -81,7 +121,7 @@ export const AllModals = ({
                   <Text className="text-[#4CAF50] font-bold">← Back to World</Text>
                 </TouchableOpacity>
               </View>
-              <ScrollView>
+              <ScrollView showsVerticalScrollIndicator={false}>
                 <Image source={{ uri: selectedUser.image }} className="w-full" style={{ height: height * 0.5 }} />
                 <View className="p-[20px]">
                   <View className="flex-row justify-between items-center">
@@ -91,18 +131,40 @@ export const AllModals = ({
                     </TouchableOpacity>
                   </View>
                   <Text className="text-[16px] text-[#666] mt-1">{selectedUser.town} • {selectedUser.gender} ({selectedUser.sexuality})</Text>
-                  <Text className="text-[16px] text-[#444] mt-[15px] leading-6">{selectedUser.bio}</Text>
+                  <Text className="text-[16px] text-[#444] mt-[15px] mb-[20px] leading-6">{selectedUser.bio}</Text>
                   
-                  {/* 🚀 THE VIP ADD FRIEND BUTTON 🚀 */}
+                  {/* 🚀 PUBLIC PROFILE EXTENSIONS (GALLERY, FRIENDS, GIFTS) 🚀 */}
+                  
+                  <ImageGallery 
+                    initialImages={[
+                      selectedUser.image, 
+                      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&q=80", 
+                      "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&q=80"
+                    ]} 
+                    isPublicView={true} 
+                  />
+                  
+                  <Friends friendsList={[
+                    { id: '10', name: 'Milan', town: 'Belgrade', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&q=80' },
+                    { id: '11', name: 'Jovana', town: 'Novi Sad', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&q=80' },
+                    { id: '12', name: 'Petar', town: 'Subotica', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80' }
+                  ]} />
+
+                  <GiftsReceived gifts={[
+                    { id: 'g1', senderName: 'Secret Admirer', giftName: 'Diamond', icon: '💎', date: '2 hours ago' },
+                    { id: 'g2', senderName: 'Marko', giftName: 'Coffee', icon: '☕', date: 'Yesterday' }
+                  ]} />
+
+                  {/* 🚀 ACTION BUTTONS 🚀 */}
+                  
                   <TouchableOpacity 
                     onPress={() => handleAddFriend(selectedUser)}
-                    className="w-full bg-[#E8F5E9] p-[15px] rounded-[15px] items-center flex-row justify-center mt-[20px] border-2 border-[#4CAF50]"
+                    className="w-full bg-[#E8F5E9] p-[15px] rounded-[15px] items-center flex-row justify-center mt-[10px] border-2 border-[#4CAF50]"
                   >
                     <Text className="text-[20px] mr-2">🤝</Text>
                     <Text className="text-[16px] font-bold text-[#4CAF50]">Add as Friend (VIP)</Text>
                   </TouchableOpacity>
 
-                  {/* 🚀 SEND GIFT SECTION 🚀 */}
                   <View className="mt-[20px] bg-pink-50/50 p-5 rounded-[20px] border border-pink-100">
                     <Text className="text-[11px] font-black mb-4 text-pink-400 text-center tracking-widest uppercase">Send a Private Gift</Text>
                     <View className="flex-row justify-center items-center">
@@ -131,7 +193,7 @@ export const AllModals = ({
                   </View>
 
                   <TouchableOpacity 
-                    className="bg-[#4CAF50] p-[18px] rounded-[150px] items-center m-[15px]" 
+                    className="bg-[#4CAF50] p-[18px] rounded-[150px] items-center m-[15px] mt-[30px]" 
                     onPress={() => { setChatUser(selectedUser); setSelectedUser(null); }}
                   >
                     <Text className="text-white font-bold">Start Direct Message</Text>
@@ -164,18 +226,10 @@ export const AllModals = ({
               </View>
 
               <View className="flex-row items-center">
-                {/* VIDEO CALL BUTTON - YOUR EXACT LOGIC REMAINS UNTOUCHED */}
                 <TouchableOpacity 
                   onPress={() => {
-                    if (navigation?.current) {
-                        setChatUserModal(null);
-                        navigation.current.navigate('VideoCall', { 
-                          userID: 'dateroot_user_1', 
-                          userName: 'Me', 
-                          callID: `room_${chatUser?.id}`,
-                          chatUserName: chatUser?.name
-                        });
-                    }
+                    setChatUserModal(null);
+                    handleStartVideoCall(chatUser);
                   }}
                   className="mr-4"
                 >
@@ -188,11 +242,15 @@ export const AllModals = ({
 
             <FlatList 
               data={chatUser ? (messages[chatUser.id] || []) : []} 
-              keyExtractor={(_, i) => i.toString()} 
+              keyExtractor={(item) => item.id} 
               renderItem={({item}) => (
-                <View className={`p-3 rounded-[20px] max-w-[80%] my-1 ${item.sender === 'me' ? 'self-end bg-[#4CAF50]' : 'self-start bg-[#F0F0F0]'}`}>
+                <TouchableOpacity 
+                  onLongPress={() => confirmDeleteMessage(item.id, chatUser.id)}
+                  activeOpacity={0.8}
+                  className={`p-3 rounded-[20px] max-w-[80%] my-1 ${item.sender === 'me' ? 'self-end bg-[#4CAF50]' : 'self-start bg-[#F0F0F0]'}`}
+                >
                   <Text className={`text-[16px] ${item.sender === 'me' ? 'text-white' : 'text-black'}`}>{item.text}</Text>
-                </View>
+                </TouchableOpacity>
               )} 
               contentContainerStyle={{padding: 10}}
             />

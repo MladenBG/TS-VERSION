@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Alert, Switch, Modal, FlatList } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Alert, Switch, Modal, FlatList, ActivityIndicator } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 // --- DATA LISTS FOR PICKERS ---
 const MUSIC_OPTIONS = ["Electronic", "Classical", "Hip-hop", "Dance", "Pop", "Rock", "Metal", "Jazz"];
@@ -40,6 +42,10 @@ export const EditProfile = ({
   const [month, setMonth] = useState('January');
   const [year, setYear] = useState('2000');
 
+  // --- IMAGE UPLOAD STATE ---
+  const [avatarUrl, setAvatarUrl] = useState('https://picsum.photos/200');
+  const [isUploading, setIsUploading] = useState(false);
+
   // --- PICKER MODAL STATE ---
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerData, setPickerData] = useState<string[]>([]);
@@ -70,8 +76,61 @@ export const EditProfile = ({
     setPickerVisible(false);
   };
 
-  const handleImageUpload = () => {
-    Alert.alert("Upload Picture", "Opening device gallery...");
+  // 🚀 REAL CLOUDFLARE UPLOAD LOGIC 🚀
+  const handleImageUpload = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (permissionResult.granted === false) {
+      Alert.alert("Permission Required", "Allow access to photos to change your profile picture.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1], // Perfect square crop for circular avatar
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setIsUploading(true);
+      try {
+        // 1. Squash Image to WebP
+        const manipResult = await ImageManipulator.manipulateAsync(
+          result.assets[0].uri,
+          [{ resize: { width: 500 } }], // Resize for avatar
+          { compress: 0.7, format: ImageManipulator.SaveFormat.WEBP }
+        );
+
+        // 2. Ask Node server for Cloudflare ticket (Make sure port is 3001!)
+        // 🚨 Change 10.0.2.2 to your laptop's real IP if testing on a physical phone
+        const response = await fetch('http://10.0.2.2:3001/api/get-upload-url');
+        const { uploadUrl, publicUrl } = await response.json();
+
+        // 3. Turn into Blob
+        const imageResponse = await fetch(manipResult.uri);
+        const blob = await imageResponse.blob();
+        
+        // 4. Send directly to Cloudflare R2
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: blob,
+          headers: { 'Content-Type': 'image/webp' },
+        });
+
+        if (uploadRes.ok) {
+          setAvatarUrl(publicUrl); // Instantly update the image on screen!
+          Alert.alert("Looking Good!", "Profile picture successfully updated.");
+        } else {
+          throw new Error("Cloudflare rejected the upload");
+        }
+      } catch (error) {
+        console.error("Profile Pic Upload Error:", error);
+        Alert.alert("Upload Failed", "Could not update profile picture. Make sure your server is running!");
+      } finally {
+        setIsUploading(false);
+      }
+    }
   };
 
   return (
@@ -80,9 +139,17 @@ export const EditProfile = ({
         
         {/* PROFILE PICTURE */}
         <View className="items-center mb-7">
-          <TouchableOpacity onPress={handleImageUpload} className="items-center">
-            <Image source={{uri: 'https://picsum.photos/200'}} className="w-[120px] h-[120px] rounded-full mb-2.5" />
-            <Text className="text-[#4CAF50] font-bold mt-2.5 text-[16px]">Change Picture</Text>
+          <TouchableOpacity onPress={handleImageUpload} className="items-center" disabled={isUploading}>
+            {isUploading ? (
+              <View className="w-[120px] h-[120px] rounded-full mb-2.5 bg-gray-200 items-center justify-center">
+                <ActivityIndicator size="large" color="#4CAF50" />
+              </View>
+            ) : (
+              <Image source={{uri: avatarUrl}} className="w-[120px] h-[120px] rounded-full mb-2.5 border-2 border-[#EEE]" />
+            )}
+            <Text className="text-[#4CAF50] font-bold mt-2.5 text-[16px]">
+              {isUploading ? "Uploading to Cloud..." : "Change Picture"}
+            </Text>
           </TouchableOpacity>
         </View>
         
