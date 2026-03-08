@@ -398,7 +398,23 @@ CONVERTING IMAGES IN WEBP
 
 npx expo install expo-image-manipulator
 
+ovo vise netreba instal ngrok
+npm install -g ngrok
 
+
+TESTING ON MOBILE
+
+npx ngrok config add-authtoken 370sNmd4FszZn4ulXW5gVcGWc3T_7b9eGN2wX2JpXZJLV6gcg
+
+npx ngrok http 3001
+
+
+
+
+
+IN a FOLDER OPEN TERMINAL AND RUN FOR MOBILE PAIRING
+
+adb reverse tcp:3001 tcp:3001
 
 
 
@@ -435,3 +451,17 @@ The Game Plan
 Since deployment is the very last step, you don't need to change localhost to your real IP just yet while you are still testing on your screen.
 
 Are we ready to dive back into the mobile UI and build that "Long-Press to Delete Message" feature inside the Inbox?
+
+
+
+
+DELETE // config.ts  INSIDE CONSTANTS FOLDER
+
+
+AND CHANGE APP.TSX ADMIN DASHBOARD LOGIN AND SIGN IN COMPONENTS URL IN CONST TO CONTABO URLS !!!!!!!
+
+
+
+
+
+

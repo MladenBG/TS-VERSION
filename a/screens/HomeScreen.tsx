@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient'; 
+// (or import LinearGradient from 'react-native-linear-gradient';)
 
 // 🚀 IMPORTING THE DOWNLOADED UI COMPONENTS 🚀
 import { Button, Text, Provider as PaperProvider, MD3LightTheme } from 'react-native-paper';
@@ -11,13 +13,13 @@ const theme = {
   colors: {
     ...MD3LightTheme.colors,
     primary: '#F43F5E', // Premium Rose Red
-    outline: '#E5E7EB', // Soft gray for outlines
+    outline: 'black', // Soft gray for outlines
   },
 };
 
 export const HomeScreen = ({ navigation }: any) => {
   return (
-    <PaperProvider theme={theme}>
+    <PaperProvider>
       <SafeAreaView style={styles.container}>
         
         {/* LOGO */}
@@ -42,10 +44,12 @@ export const HomeScreen = ({ navigation }: any) => {
         {/* 🚀 REAL PRE-BUILT BUTTON COMPONENTS 🚀 */}
         <View style={styles.buttonContainer}>
           
-          {/* Solid "Contained" Button */}
+          {/* FIRST PRIMARY BUTTON (Rose Red) */}
           <Button 
             mode="contained" 
             onPress={() => navigation.navigate('SignUp')}
+            buttonColor="#F43F5E" // 👈 Solid Rose Red background
+            textColor="#FFFFFF"   // 👈 White text
             contentStyle={styles.buttonContent}
             style={styles.button}
             labelStyle={styles.buttonLabel}
@@ -53,16 +57,30 @@ export const HomeScreen = ({ navigation }: any) => {
             Create Account
           </Button>
 
-          {/* Outlined "Web Style" Button */}
-          <Button 
-            mode="outlined" 
-            onPress={() => navigation.navigate('Login')}
-            contentStyle={styles.buttonContent}
-            style={styles.button}
-            labelStyle={styles.buttonLabelDark}
-          >
-            Sign In
-          </Button>
+         {/* SECOND BUTTON WITH GRADIENT BORDER */}
+<LinearGradient
+  colors={['#F43F5E', '#FF7A59', 'blue']} // 👈 Your Pink-to-Red gradient colors!
+  start={{ x: 0, y: 0 }}
+  end={{ x: 1, y: 0 }}
+  style={{
+    padding: 2, // 👈 THIS IS YOUR BORDER THICKNESS
+    borderRadius: 30, // Must be slightly bigger than the button's radius
+    marginBottom: 12,
+
+  }}
+>
+  <Button 
+    mode="contained" 
+    onPress={() => navigation.navigate('Login')}
+    buttonColor="#1F2937" // 👈 The solid dark center
+    textColor="#FFFFFF"   
+    contentStyle={styles.buttonContent}
+    style={{ borderRadius: 30 }} // 👈 Inner radius
+    labelStyle={styles.buttonLabel}
+  >
+    Sign In
+  </Button>
+</LinearGradient>
 
         </View>
       </SafeAreaView>
@@ -74,7 +92,7 @@ export const HomeScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'pink',
     paddingHorizontal: 24,
     paddingBottom: 40,
   },
@@ -106,6 +124,9 @@ const styles = StyleSheet.create({
   button: {
     marginBottom: 16,
     borderRadius: 50, // Perfect pill shape
+    color: 'black',
+     borderWidth: 5, 
+    borderColor: 'gradient-pink-red', // Put your color here
   },
   buttonContent: {
     height: 60, // Tall, modern button height
@@ -119,6 +140,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     letterSpacing: 0.5,
-    color: '#000000',
+    color: 'white',
+
   }
 });

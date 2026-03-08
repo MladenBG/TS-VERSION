@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, ScrollView, Image, TouchableOpacity, Alert } from 'react-native';
 
+// =========================================================================
+// 🚨 THE MASTER URL SWITCH 🚨
+// =========================================================================
+// USE NGROK FOR BOTH EMULATOR AND PHONE AT THE SAME TIME:
+//const API_URL = "https://marshall-voltametric-clair.ngrok-free.dev"; 
+//const API_URL = "https://jn6hwd5g-3000.euw.devtunnels.ms";
+// COMMENT OUT THE LOCAL IP:
+const API_URL = "http://10.0.2.2:3000"; 
+// =========================================================================
+
 export const AdminDashboard = ({ profiles, setProfiles, isVip }: any) => {
   const [adminSearch, setAdminSearch] = useState('');
   const [viewMode, setViewMode] = useState<'users' | 'reports'>('users');
@@ -9,8 +19,8 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip }: any) => {
   // 🚀 FETCH LIVE REPORTS FROM DATABASE
   const fetchReports = async () => {
     try {
-      // 🚨 Change 10.0.2.2 to your real IP if using a physical phone
-      const res = await fetch('http://10.0.2.2:3001/api/admin/reports');
+      // 🚨 UPDATED TO USE API_URL
+      const res = await fetch(`${API_URL}/api/admin/reports`);
       if (res.ok) {
         const data = await res.json();
         setReports(data);
@@ -28,7 +38,8 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip }: any) => {
 
   const handleResolveReport = async (reportId: number) => {
     try {
-      await fetch('http://10.0.2.2:3001/api/admin/resolve-report', {
+      // 🚨 UPDATED TO USE API_URL
+      await fetch(`${API_URL}/api/admin/resolve-report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reportId })

@@ -7,7 +7,7 @@ export const SafetyMenu = ({ viewedUserId }: { viewedUserId: string }) => {
 
   const handleBlock = async () => {
     try {
-      const response = await fetch('http://10.0.2.2:3001/api/block', {
+      const response = await fetch('http://192.168.8.104:3001/api/block', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ blockerId: currentUserId, blockedId: viewedUserId })
@@ -23,7 +23,7 @@ export const SafetyMenu = ({ viewedUserId }: { viewedUserId: string }) => {
 
   const submitReport = async (reason: string) => {
     try {
-      const response = await fetch('http://10.0.2.2:3001/api/report', {
+      const response = await fetch('http://192.168.8.104:3001/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reporterId: currentUserId, reportedId: viewedUserId, reason })

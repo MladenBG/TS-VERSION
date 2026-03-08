@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { LinearGradient } from 'expo-linear-gradient';
 // 🚀 IMPORTING ADVANCED UI COMPONENTS (SegmentedButtons, Checkbox)
 import { TextInput, Button, Text, SegmentedButtons, Checkbox, Provider as PaperProvider, MD3LightTheme, HelperText } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
 
-const API_URL = "http://192.168.8.104:3000/api";
+const API_URL = "http://10.0.2.2:3000/api";
 
 const theme = {
   ...MD3LightTheme,
@@ -19,7 +19,8 @@ const theme = {
 };
 
 export const SignUpScreen = ({ navigation }: any) => {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -38,17 +39,21 @@ export const SignUpScreen = ({ navigation }: any) => {
   const doPasswordsMatch = password === confirmPassword && password.length > 0;
 
   const handleSignUp = async () => {
-    if (!name || !email || !password || !confirmPassword || !gender) return Alert.alert("Error", "Please fill all fields.");
+    // Updated validation to check both first and last name
+    if (!firstName || !lastName || !email || !password || !confirmPassword || !gender) return Alert.alert("Error", "Please fill all fields.");
     if (!isPasswordValid) return Alert.alert("Error", "Please meet all password requirements.");
     if (!doPasswordsMatch) return Alert.alert("Error", "Passwords do not match.");
     if (!is18) return Alert.alert("Error", "You must be 18 or older.");
 
     setIsLoading(true);
     try {
+      // Combining firstName and lastName into 'name' for the backend
+      const fullName = `${firstName.trim()} ${lastName.trim()}`;
+
       const response = await fetch(`${API_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email: email.toLowerCase(), password, gender })
+        body: JSON.stringify({ name: fullName, email: email.toLowerCase(), password, gender })
       });
       const data = await response.json();
       if (!response.ok) {
@@ -83,11 +88,24 @@ export const SignUpScreen = ({ navigation }: any) => {
             </View>
 
             <View style={styles.form}>
+              
+              {/* FIRST NAME INPUT */}
               <TextInput
                 mode="outlined"
                 label="First Name"
-                value={name}
-                onChangeText={setName}
+                value={firstName}
+                onChangeText={setFirstName}
+                style={styles.input}
+                outlineStyle={styles.inputOutline}
+                left={<TextInput.Icon icon="account" />}
+              />
+
+              {/* LAST NAME INPUT */}
+              <TextInput
+                mode="outlined"
+                label="Last Name"
+                value={lastName}
+                onChangeText={setLastName}
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
                 left={<TextInput.Icon icon="account" />}
@@ -116,7 +134,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                 left={<TextInput.Icon icon="lock" />}
                 right={<TextInput.Icon icon={showPassword ? "eye-off" : "eye"} onPress={() => setShowPassword(!showPassword)} />}
               />
-
+              
               {/* PROFESSIONAL HELPER TEXT FOR PASSWORD */}
               <View style={styles.requirementsBox}>
                 <Text style={[styles.reqText, hasMinLength ? styles.reqValid : styles.reqInvalid]}>• At least 8 characters</Text>
@@ -124,7 +142,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                 <Text style={[styles.reqText, hasNumber ? styles.reqValid : styles.reqInvalid]}>• One Number</Text>
                 <Text style={[styles.reqText, hasSpecial ? styles.reqValid : styles.reqInvalid]}>• One Special Symbol</Text>
               </View>
-
+              
               <TextInput
                 mode="outlined"
                 label="Confirm Password"
@@ -189,7 +207,7 @@ export const SignUpScreen = ({ navigation }: any) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
+  container: { flex: 1, backgroundColor: 'pink' },
   flex1: { flex: 1 },
   navBar: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10 },
   scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
@@ -198,11 +216,11 @@ const styles = StyleSheet.create({
   subtitle: { color: '#6B7280', fontWeight: 'bold' },
   form: { marginBottom: 20 },
   input: { marginBottom: 12, backgroundColor: '#ffffff' },
-  inputOutline: { borderRadius: 12, borderColor: '#E5E7EB' },
-  requirementsBox: { backgroundColor: '#F9FAFB', padding: 12, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#F3F4F6' },
+  inputOutline: { borderRadius: 12, borderColor: 'black', borderWidth: 1},
+  requirementsBox: { backgroundColor: 'grey', padding: 12, borderRadius: 12, marginBottom: 16, borderWidth: 3, borderColor: 'white'},
   reqText: { fontSize: 13, fontWeight: '600', marginBottom: 4 },
   reqValid: { color: '#10B981' },
-  reqInvalid: { color: '#9CA3AF' },
+  reqInvalid: { color: 'white' },
   sectionLabel: { fontWeight: '900', color: '#000', marginTop: 10, marginBottom: 10 },
   segmentedBtn: { marginBottom: 20 },
   checkboxItem: { paddingHorizontal: 0, marginLeft: -8, marginBottom: 10 },

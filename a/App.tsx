@@ -47,8 +47,25 @@ import { SignUpScreen } from './screens/SignUpScreen';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 
 const logoImg = require('./assets/logo.png');
-// 🚀 FIXED: EXPORTED SOCKET & CHANGED TO 10.0.2.2 FOR EMULATOR
-export const socket = io("http://10.0.2.2:3001");
+
+// =========================================================================
+// 🚨 THE MASTER URL SWITCH (FIXED FOR JSON PARSE ERROR) 🚨
+// =========================================================================
+// Because your database is on Port 3000 and your chat is on Port 3001, 
+// we must separate them!
+//const API_URL = "https://jn6hwd5g-3000.euw.devtunnels.ms"; 
+//const SOCKET_URL = "https://jn6hwd5g-3000.euw.devtunnels.ms";
+// 📱 IF TESTING ON PHYSICAL PHONE (Uncomment these two lines):
+// const API_URL = "https://marshall-voltametric-clair.ngrok-free.dev"; 
+// const SOCKET_URL = "https://marshall-voltametric-clair.ngrok-free.dev";
+
+// 💻 IF TESTING ON EMULATOR (Uncomment these two lines):
+const API_URL = "http://10.0.2.2:3000"; 
+const SOCKET_URL = "http://10.0.2.2:3001"; 
+// =========================================================================
+
+// 🚀 FIXED: SOCKET NOW USES THE DYNAMIC SOCKET_URL
+export const socket = io(SOCKET_URL);
 const Stack = createStackNavigator();
 
 export const navigationRef = createNavigationContainerRef();
@@ -92,7 +109,8 @@ export default function App() {
   useEffect(() => {
     const fetchRealUsers = async () => {
       try {
-        const res = await fetch('http://10.0.2.2:3000/api/users');
+        // 🚨 FIXED: Now uses API_URL
+        const res = await fetch(`${API_URL}/api/users`);
         const data = await res.json();
         
         if (data && !data.error) {
@@ -113,15 +131,18 @@ export default function App() {
           setProfiles(formattedProfiles);
         }
 
-        const likedRes = await fetch('http://10.0.2.2:3000/api/likes/who-liked-me');
+        // 🚨 FIXED: Now uses API_URL
+        const likedRes = await fetch(`${API_URL}/api/likes/who-liked-me`);
         const likedData = await likedRes.json();
         if (!likedData.error) setLikedMeProfiles(likedData);
 
-        const viewsRes = await fetch('http://10.0.2.2:3000/api/views');
+        // 🚨 FIXED: Now uses API_URL
+        const viewsRes = await fetch(`${API_URL}/api/views`);
         const viewsData = await viewsRes.json();
         if (!viewsData.error) setViewedMeProfiles(viewsData);
 
-        const giftsRes = await fetch('http://10.0.2.2:3000/api/gifts');
+        // 🚨 FIXED: Now uses API_URL
+        const giftsRes = await fetch(`${API_URL}/api/gifts`);
         const giftsData = await giftsRes.json();
         if (!giftsData.error) setReceivedGifts(giftsData);
 
@@ -137,7 +158,8 @@ export default function App() {
     if (chatUser) {
       const fetchChatHistory = async () => {
         try {
-          const res = await fetch(`http://10.0.2.2:3000/api/messages?other_id=${chatUser.id}`);
+          // 🚨 FIXED: Now uses API_URL
+          const res = await fetch(`${API_URL}/api/messages?other_id=${chatUser.id}`);
           const history = await res.json();
           if (!history.error) {
             setMessages(prev => ({ ...prev, [chatUser.id]: history }));
@@ -178,7 +200,8 @@ export default function App() {
   const toggleInvisibleMode = async (newValue: boolean) => {
     setIsPrivate(newValue); 
     try {
-      await fetch('http://10.0.2.2:3000/api/settings/invisible', {
+      // 🚨 FIXED: Now uses API_URL
+      await fetch(`${API_URL}/api/settings/invisible`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_invisible: newValue })
@@ -313,7 +336,8 @@ export default function App() {
   const handleProfileView = async (user: any) => {
     setSelectedUser(user);
     try {
-      await fetch('http://10.0.2.2:3000/api/views', {
+      // 🚨 FIXED: Now uses API_URL
+      await fetch(`${API_URL}/api/views`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ viewed_id: user.id })
@@ -329,7 +353,8 @@ export default function App() {
     ));
 
     try {
-      await fetch('http://10.0.2.2:3000/api/likes', {
+      // 🚨 FIXED: Now uses API_URL
+      await fetch(`${API_URL}/api/likes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ liked_user_id: liked_user_id })
@@ -383,7 +408,8 @@ export default function App() {
     
     try {
       // 2. Save it to the database
-      const res = await fetch('http://10.0.2.2:3000/api/messages', {
+      // 🚨 FIXED: Now uses API_URL
+      const res = await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ receiver_id: chatUser.id, content: textToSend })
@@ -455,7 +481,8 @@ export default function App() {
     Alert.alert("Friend Request Sent", `You sent a friend request to ${user.name}!`);
 
     try {
-      await fetch('http://10.0.2.2:3000/api/friends', {
+      // 🚨 FIXED: Now uses API_URL
+      await fetch(`${API_URL}/api/friends`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ friend_id: user.id })
@@ -475,7 +502,8 @@ export default function App() {
     Alert.alert("Gift Sent!", `You sent a ${giftName} to ${user.name}!`);
     
     try {
-      await fetch('http://10.0.2.2:3000/api/gifts', {
+      // 🚨 FIXED: Now uses API_URL
+      await fetch(`${API_URL}/api/gifts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ receiver_id: user.id, gift_name: giftName })
@@ -844,7 +872,6 @@ export default function App() {
                   ))}
                 </View>
 
-                {/* 🚀 FIXED: ADDED setMessages PROP HERE 🚀 */}
                 <AllModals 
                   showFilters={showFilters} 
                   setShowFilters={setShowFilters} 
@@ -882,7 +909,6 @@ export default function App() {
           }}
         </Stack.Screen>
 
-        {/* 🚀 CLOUDFLARE VIDEO SCREEN REGISTERED HERE 🚀 */}
         <Stack.Screen name="CloudflareVideoCall" component={CloudflareVideoCall} />
 
       </Stack.Navigator>

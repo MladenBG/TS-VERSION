@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 // 🚀 IMPORTING PROFESSIONAL UI COMPONENTS
 import { TextInput, Button, Text, Provider as PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient'; 
+// =========================================================================
+// 🚨 THE MASTER URL SWITCH 🚨
+// =========================================================================
 
-const API_URL = "http://192.168.8.104:3000/api";
+// USE NGROK FOR BOTH EMULATOR AND PHONE AT THE SAME TIME:
+//const API_URL = "https://marshall-voltametric-clair.ngrok-free.dev"; 
+//const API_URL = "https://jn6hwd5g-3000.euw.devtunnels.ms";
+// COMMENT OUT THE LOCAL IP:
+ const API_URL = "http://10.0.2.2:3000"; 
+// =========================================================================
 
 // Premium Rose Theme
 const theme = {
@@ -30,7 +38,8 @@ export const LoginScreen = ({ navigation }: any) => {
     }
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      // 🚨 UPDATED TO USE API_URL CONSISTENTLY
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.toLowerCase(), password })
@@ -97,19 +106,34 @@ export const LoginScreen = ({ navigation }: any) => {
             </View>
 
             {/* PROFESSIONAL BUTTON */}
-            <Button 
-              mode="contained" 
-              onPress={handleLogin} 
-              loading={isLoading}
-              disabled={isLoading}
-              style={styles.button}
-              contentStyle={styles.buttonContent}
-              labelStyle={styles.buttonLabel}
-            >
-              Sign In
-            </Button>
+            
+<LinearGradient
+  colors={['#F43F5E', '#FF7A59', 'blue']} // 👈 Your Pink-to-Red gradient colors!
+  start={{ x: 0, y: 0 }}
+  end={{ x: 1, y: 0 }}
+  style={{
+    padding: 2, // 👈 THIS IS YOUR BORDER THICKNESS
+    borderRadius: 30, // Must be slightly bigger than the button's radius
+    marginBottom: 12,
 
-            {/* BOTTOM LINK */}
+  }}
+>
+  <Button 
+   onPress={handleLogin} 
+    loading={isLoading}
+    disabled={isLoading}
+    mode="contained" 
+    buttonColor="#1F2937" // 👈 The solid dark center
+    textColor="#FFFFFF"   
+    contentStyle={styles.buttonContent}
+    style={{ borderRadius: 30 }} // 👈 Inner radius
+    labelStyle={styles.buttonLabel}
+  >
+    Sign In
+  </Button>
+</LinearGradient>
+
+             {/* BOTTOM LINK */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>Don't have an account? </Text>
               <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
@@ -124,7 +148,7 @@ export const LoginScreen = ({ navigation }: any) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
+  container: { flex: 1, backgroundColor: 'pink' },
   flex1: { flex: 1 },
   backButton: { padding: 20, paddingTop: 10 },
   content: { flex: 1, paddingHorizontal: 24, justifyContent: 'center', paddingBottom: 40 },
@@ -133,7 +157,7 @@ const styles = StyleSheet.create({
   subtitle: { color: '#6B7280', fontWeight: 'bold' },
   form: { marginBottom: 32 },
   input: { marginBottom: 16, backgroundColor: '#ffffff' },
-  inputOutline: { borderRadius: 12, borderColor: '#E5E7EB' },
+  inputOutline: { borderRadius: 12, borderColor: 'black', borderWidth: 1},
   forgotPassword: { alignSelf: 'flex-end', marginTop: -4 },
   forgotText: { color: '#F43F5E', fontWeight: 'bold' },
   button: { borderRadius: 50, shadowColor: '#F43F5E', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },

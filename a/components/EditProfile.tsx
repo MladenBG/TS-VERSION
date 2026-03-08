@@ -3,6 +3,16 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Alert, Swit
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 
+// =========================================================================
+// 🚨 THE MASTER URL SWITCH 🚨
+// =========================================================================
+// USE NGROK FOR BOTH EMULATOR AND PHONE AT THE SAME TIME:
+//const API_URL = "https://marshall-voltametric-clair.ngrok-free.dev"; 
+
+// COMMENT OUT THE LOCAL IP:
+ const API_URL = "http://10.0.2.2:3000"; 
+// =========================================================================
+
 // --- DATA LISTS FOR PICKERS ---
 const MUSIC_OPTIONS = ["Electronic", "Classical", "Hip-hop", "Dance", "Pop", "Rock", "Metal", "Jazz"];
 const EDUCATION_OPTIONS = ["No Education", "High School", "College", "Master", "PhD", "Other"];
@@ -106,7 +116,8 @@ export const EditProfile = ({
           { compress: 0.7, format: ImageManipulator.SaveFormat.WEBP }
         );
 
-        const response = await fetch('http://10.0.2.2:3001/api/get-upload-url');
+        // 🚨 UPDATED TO USE API_URL
+        const response = await fetch(`${API_URL}/api/get-upload-url`);
         const { uploadUrl, publicUrl } = await response.json();
 
         const imageResponse = await fetch(manipResult.uri);
@@ -137,7 +148,8 @@ export const EditProfile = ({
   const openBlockedUsers = async () => {
     setShowBlockedModal(true);
     try {
-      const res = await fetch(`http://10.0.2.2:3001/api/blocks/${currentUserId}`);
+      // 🚨 UPDATED TO USE API_URL
+      const res = await fetch(`${API_URL}/api/blocks/${currentUserId}`);
       if (res.ok) {
         const data = await res.json();
         setBlockedUsers(data);
@@ -150,7 +162,8 @@ export const EditProfile = ({
   // 🚀 UNBLOCK A USER
   const handleUnblock = async (blockedId: string) => {
     try {
-      const res = await fetch('http://10.0.2.2:3001/api/unblock', {
+      // 🚨 UPDATED TO USE API_URL
+      const res = await fetch(`${API_URL}/api/unblock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ blockerId: currentUserId, blockedId })
