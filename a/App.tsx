@@ -467,6 +467,7 @@ export default function App() {
       console.error("Failed to save lobby message:", error);
     }
   };
+  
   const handleStartVideoCall = (user: any) => {
     if (!isAdmin && !isVip) {
       Alert.alert("Premium Feature", "Video Calling is locked. You must subscribe to use the camera!");
@@ -823,6 +824,8 @@ export default function App() {
                       profiles={profiles} 
                       setProfiles={setProfiles} 
                       isVip={isVip} 
+                      setLobbyMessages={setLobbyMessages}
+                      setMessages={setMessages}
                     />
                   )}
 
@@ -899,6 +902,7 @@ export default function App() {
                   ))}
                 </View>
 
+                {/* 🚀 FIXED: myId passed into AllModals right here! */}
                 <AllModals 
                   showFilters={showFilters} 
                   setShowFilters={setShowFilters} 
@@ -924,6 +928,7 @@ export default function App() {
                   handleStartVideoCall={handleStartVideoCall} 
                   handleAddFriend={handleAddFriend}
                   handleSendGift={handleSendGift} 
+                  myId={myId} 
                 />
 
                 <Subscription 

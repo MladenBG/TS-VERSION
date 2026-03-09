@@ -11,7 +11,7 @@ import { View, Text, TextInput, ScrollView, Image, TouchableOpacity, Alert } fro
 const API_URL = "http://10.0.2.2:3000"; 
 // =========================================================================
 
-export const AdminDashboard = ({ profiles, setProfiles, isVip }: any) => {
+export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages, setMessages }: any) => {
   const [adminSearch, setAdminSearch] = useState('');
   const [viewMode, setViewMode] = useState<'users' | 'reports'>('users');
   const [reports, setReports] = useState<any[]>([]);
@@ -19,7 +19,6 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip }: any) => {
   // 🚀 FETCH LIVE REPORTS FROM DATABASE
   const fetchReports = async () => {
     try {
-      // 🚨 UPDATED TO USE API_URL
       const res = await fetch(`${API_URL}/api/admin/reports`);
       if (res.ok) {
         const data = await res.json();
@@ -38,13 +37,11 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip }: any) => {
 
   const handleResolveReport = async (reportId: number) => {
     try {
-      // 🚨 UPDATED TO USE API_URL
       await fetch(`${API_URL}/api/admin/resolve-report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reportId })
       });
-      // Remove it from the screen immediately
       setReports(prev => prev.filter(r => r.id !== reportId));
       Alert.alert("Resolved", "Report has been cleared.");
     } catch (e) {
@@ -52,9 +49,98 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip }: any) => {
     }
   };
 
+  // 🚀 REAL ADMIN ACTIONS HIT THE DATABASE 🚀
+  const executeAdminAction = async (action: string, target_id: string | null = null, successMessage: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/admin/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, target_id })
+      });
+      
+      const data = await res.json();
+      
+      if (!data.error) {
+        Alert.alert("Success", successMessage);
+        
+        // 🚀 INSTANT UI WIPES (No refresh needed!)
+        if (action === 'wipe_lobby' && setLobbyMessages) {
+          setLobbyMessages([]); 
+        }
+        if (action === 'wipe_private' && setMessages) {
+          setMessages({}); 
+        }
+
+        // UI Updates for banning
+        if (action === 'ban_user' || action === 'block_ip') {
+          setProfiles((prev: any[]) => prev.map((p: any) => 
+            p.id === target_id ? { ...p, isBanned: true } : p
+          ));
+        }
+        
+        // UI Updates for unbanning
+        if (action === 'unban_user' || action === 'unblock_ip') {
+          setProfiles((prev: any[]) => prev.map((p: any) => 
+            p.id === target_id ? { ...p, isBanned: false } : p
+          ));
+        }
+
+      } else {
+        Alert.alert("Error", data.error);
+      }
+    } catch (error) {
+      console.error("Admin action failed:", error);
+      Alert.alert("Error", "Could not reach the database.");
+    }
+  };
+
+  // 🚨 NUKE CONFIRMATION DIALOGS
+  const handleWipeLobby = () => {
+    Alert.alert("☢️ WIPE LOBBY", "Are you sure? This deletes ALL public messages permanently.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Wipe It", style: "destructive", onPress: () => executeAdminAction('wipe_lobby', null, "Lobby completely cleared.") }
+    ]);
+  };
+
+  const handleWipePrivateChats = () => {
+    Alert.alert("☢️ WIPE PRIVATE CHATS", "Are you sure? This deletes ALL private DMs between EVERY user in the app.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Wipe Everything", style: "destructive", onPress: () => executeAdminAction('wipe_private', null, "All private chats deleted.") }
+    ]);
+  };
+
+  // 🚨 BAN / UNBAN CONTROLS
+  const handleBanUser = (user: any) => {
+    Alert.alert("Ban User", `Are you sure you want to ban ${user.name}?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Ban", style: "destructive", onPress: () => executeAdminAction('ban_user', user.id, `${user.name} has been banned.`) }
+    ]);
+  };
+
+  const handleIpBlockUser = (user: any) => {
+    Alert.alert("🚫 IP BLOCK USER", `Ban ${user.name} and block their IP address permanently?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "IP BLOCK", style: "destructive", onPress: () => executeAdminAction('block_ip', user.id, `${user.name} is banned and their IP is blacklisted.`) }
+    ]);
+  };
+
+  const handleUnbanUser = (user: any) => {
+    Alert.alert("Unban User", `Remove ban for ${user.name}?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Unban", style: "default", onPress: () => executeAdminAction('unban_user', user.id, `${user.name} has been unbanned.`) }
+    ]);
+  };
+
+  const handleUnblockIpUser = (user: any) => {
+    Alert.alert("Remove IP Block", `Unban ${user.name} and remove their IP from the blacklist?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Unblock IP", style: "default", onPress: () => executeAdminAction('unblock_ip', user.id, `${user.name} has been completely unblocked.`) }
+    ]);
+  };
+
   const adminFiltered = profiles.filter((p: any) => 
     p.name.toLowerCase().includes(adminSearch.toLowerCase()) || 
-    p.id.toLowerCase().includes(adminSearch.toLowerCase())
+    p.id.toString().toLowerCase().includes(adminSearch.toLowerCase())
   );
 
   const totalUsers = profiles.length;
@@ -99,7 +185,7 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip }: any) => {
           </View>
         </View>
 
-        {/* 🚀 THE NEW TOGGLE TABS */}
+        {/* 🚀 THE TOGGLE TABS */}
         <View className="flex-row mx-5 mt-2 mb-4 border-b border-gray-200">
           <TouchableOpacity onPress={() => setViewMode('users')} className={`flex-1 pb-3 items-center ${viewMode === 'users' ? 'border-b-2 border-green-500' : ''}`}>
             <Text className={`font-black tracking-wider uppercase ${viewMode === 'users' ? 'text-green-500' : 'text-gray-400'}`}>User Database</Text>
@@ -114,19 +200,71 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip }: any) => {
         <View className="bg-white border-y border-gray-200">
           
           {/* USER DATABASE VIEW */}
-          {viewMode === 'users' && adminFiltered.map((u: any, index: number) => (
-            <View key={u.id} className={`flex-row p-4 items-center ${index !== adminFiltered.length - 1 ? 'border-b border-gray-100' : ''}`}>
-              <Image source={{uri: u.image}} className="w-[50px] h-[50px] rounded-full mr-4 bg-gray-200" />
-              <View className="flex-1">
-                <Text className={`font-black text-[16px] ${u.isBanned ? 'text-red-500 line-through' : 'text-gray-900'}`}>{u.name}, {u.age}</Text>
-                <Text className="text-[12px] font-semibold text-gray-500 mt-0.5">{u.town} • {u.gender}</Text>
-                <Text className="text-[10px] font-mono text-gray-400 mt-1">ID: {u.id}</Text>
+          {viewMode === 'users' && (
+            <View className="p-4">
+              {/* 🔴 GLOBAL NUKE CONTROLS */}
+              <View className="bg-red-50 p-4 rounded-2xl border border-red-200 mb-6">
+                <Text className="text-red-800 font-bold mb-3 text-[14px]">GLOBAL DATABASE WIPES</Text>
+                <View className="flex-row justify-between">
+                  <TouchableOpacity 
+                    onPress={handleWipeLobby}
+                    className="bg-red-500 py-3 px-2 rounded-xl flex-1 mr-2 items-center shadow-sm"
+                  >
+                    <Text className="text-white font-black text-[12px]">WIPE LOBBY</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={handleWipePrivateChats}
+                    className="bg-red-700 py-3 px-2 rounded-xl flex-1 ml-2 items-center shadow-sm"
+                  >
+                    <Text className="text-white font-black text-[12px]">WIPE ALL DMs</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <TouchableOpacity onPress={() => setProfiles((prev: any) => prev.map((p: any) => p.id === u.id ? {...p, isBanned: !p.isBanned} : p))} className={`py-2 px-5 rounded-full shadow-sm elevation-1 ${u.isBanned ? 'bg-green-500' : 'bg-red-500'}`}>
-                <Text className="text-white text-[12px] font-black tracking-wider">{u.isBanned ? 'UNBAN' : 'BAN'}</Text>
-              </TouchableOpacity>
+
+              {adminFiltered.map((u: any, index: number) => (
+                <View key={u.id} className={`flex-row py-4 items-center ${index !== adminFiltered.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                  <Image source={{uri: u.image}} className="w-[50px] h-[50px] rounded-full mr-4 bg-gray-200" />
+                  <View className="flex-1">
+                    <Text className={`font-black text-[16px] ${u.isBanned ? 'text-red-500 line-through' : 'text-gray-900'}`}>{u.name}, {u.age}</Text>
+                    <Text className="text-[12px] font-semibold text-gray-500 mt-0.5">{u.town} • {u.gender}</Text>
+                    <Text className="text-[10px] font-mono text-gray-400 mt-1">ID: {u.id}</Text>
+                  </View>
+                  
+                  {u.isBanned ? (
+                    <View className="flex-col">
+                      <TouchableOpacity 
+                        onPress={() => handleUnbanUser(u)} 
+                        className="bg-green-500 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
+                      >
+                        <Text className="text-white text-[10px] font-black tracking-wider">UNBAN</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        onPress={() => handleUnblockIpUser(u)} 
+                        className="bg-green-700 py-1.5 px-3 rounded-md shadow-sm elevation-1 items-center"
+                      >
+                        <Text className="text-white text-[10px] font-black tracking-wider">UNBLOCK IP</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View className="flex-col">
+                      <TouchableOpacity 
+                        onPress={() => handleBanUser(u)} 
+                        className="bg-orange-500 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
+                      >
+                        <Text className="text-white text-[10px] font-black tracking-wider">BAN</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        onPress={() => handleIpBlockUser(u)} 
+                        className="bg-gray-900 py-1.5 px-3 rounded-md shadow-sm elevation-1 items-center"
+                      >
+                        <Text className="text-white text-[10px] font-black tracking-wider">IP BLOCK</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))}
             </View>
-          ))}
+          )}
 
           {/* 🚀 REPORTS VIEW */}
           {viewMode === 'reports' && reports.length === 0 && (
@@ -134,7 +272,6 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip }: any) => {
           )}
 
           {viewMode === 'reports' && reports.map((report: any, index: number) => {
-            // Find the full user data based on the reported ID
             const reportedUser = profiles.find((p: any) => p.id === report.reported_id);
             if (!reportedUser) return null;
 
@@ -159,7 +296,7 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip }: any) => {
                   </TouchableOpacity>
                   <TouchableOpacity 
                     onPress={() => {
-                      setProfiles((prev: any) => prev.map((p: any) => p.id === reportedUser.id ? {...p, isBanned: true} : p));
+                      executeAdminAction('ban_user', reportedUser.id, `${reportedUser.name} has been banned.`);
                       handleResolveReport(report.id);
                     }} 
                     className="bg-red-600 py-2 px-4 rounded-lg shadow-sm"

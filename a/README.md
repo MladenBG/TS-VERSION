@@ -301,7 +301,8 @@ git add .
 git commit -m "Transferring project to new repository"
 git push -u origin main --force
 
-
+check repo
+git remote -v
 
 
 UPDATING CHAGES TO GITHUB
@@ -465,3 +466,7 @@ AND CHANGE APP.TSX ADMIN DASHBOARD LOGIN AND SIGN IN COMPONENTS URL IN CONST TO 
 
 
 
+REDIS INSTALING
+
+
+npm install redis "@socket.io/redis-adapter"

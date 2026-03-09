@@ -12,6 +12,7 @@ import { ImageGallery } from './ImageGallery';
 import { GiftsReceived } from './GiftsReceived';
 
 const { height } = Dimensions.get('window');
+const API_URL = "http://10.0.2.2:3000"; 
 
 export const AllModals = ({ 
   showFilters, setShowFilters, filterGender, setFilterGender, filterSexuality, setFilterSexuality, SEXUALITIES, setCurrentPage,
@@ -20,10 +21,11 @@ export const AllModals = ({
   navigation, 
   handleAddFriend, 
   handleSendGift,
-  handleStartVideoCall 
+  handleStartVideoCall,
+  myId // 🚀 FIXED: Now accepts myId to properly block/report to the DB
 }: any) => {
 
-  // 🚀 NEW: DELETE MESSAGE LOGIC 🚀
+  // 🚀 DELETE MESSAGE LOGIC
   const confirmDeleteMessage = (messageId: string, userId: string) => {
     Alert.alert(
       "Delete Message",
@@ -40,21 +42,95 @@ export const AllModals = ({
   };
 
   const deleteMessage = async (messageId: string, userId: string) => {
-    // 1. Remove from local screen immediately
     const updatedMessages = (messages[userId] || []).filter((m: any) => m.id !== messageId);
     setMessages({
       ...messages,
       [userId]: updatedMessages
     });
 
-    // 2. Tell the database to delete it
     try {
-      await fetch(`http://10.0.2.2:3000/api/messages?id=${messageId}`, {
+      await fetch(`${API_URL}/api/messages?id=${messageId}`, {
         method: 'DELETE',
       });
     } catch (error) {
       console.error("Failed to delete from DB:", error);
     }
+  };
+
+  // 🚀 FIXED: REPORT LOGIC (Sends myId and chatUser.id)
+  const handleReportUser = () => {
+    Alert.alert(
+      "Report User",
+      `Are you sure you want to report ${chatUser?.name}? This will notify the admin team immediately.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Report", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await fetch(`${API_URL}/api/admin/reports`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  reporter_id: myId, 
+                  reported_id: chatUser.id, 
+                  reason: "Inappropriate behavior in private chat" 
+                })
+              });
+              Alert.alert("Reported", "The admin team has been notified. Thank you for keeping DateRoot safe.");
+            } catch (error) {
+              console.error("Failed to report:", error);
+            }
+          } 
+        }
+      ]
+    );
+  };
+
+  // 🚀 FIXED: BLOCK LOGIC (Sends myId and chatUser.id)
+  const handleBlockUser = () => {
+    Alert.alert(
+      "Block User",
+      `Are you sure you want to block ${chatUser?.name}? You will no longer receive messages from them.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Block", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await fetch(`${API_URL}/api/users/block`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  blocker_id: myId, 
+                  blocked_id: chatUser.id 
+                })
+              });
+              Alert.alert("Blocked", `${chatUser.name} has been blocked.`);
+              setChatUserModal(null); 
+            } catch (error) {
+              // Even if DB fails, close the chat to protect the user visually
+              Alert.alert("Blocked", `${chatUser.name} has been blocked.`);
+              setChatUserModal(null);
+            }
+          } 
+        }
+      ]
+    );
+  };
+
+  const openChatOptions = () => {
+    Alert.alert(
+      "Chat Options",
+      `What would you like to do with ${chatUser?.name}?`,
+      [
+        { text: "Report User", style: "destructive", onPress: handleReportUser },
+        { text: "Block User", style: "destructive", onPress: handleBlockUser },
+        { text: "Cancel", style: "cancel" }
+      ]
+    );
   };
 
   return (
@@ -220,20 +296,29 @@ export const AllModals = ({
                 <Text className="text-[#4CAF50] font-bold">← Close</Text>
               </TouchableOpacity>
               
-              <View className="items-center">
+              <View className="items-center ml-4">
                 <Text className="text-[18px] font-bold text-black">{chatUser?.name}</Text>
                 <Text className="text-[10px] text-green-500">Online Now</Text>
               </View>
 
               <View className="flex-row items-center">
+                {/* Video Call Button */}
                 <TouchableOpacity 
                   onPress={() => {
                     setChatUserModal(null);
                     handleStartVideoCall(chatUser);
                   }}
-                  className="mr-4"
+                  className="mr-3"
                 >
                   <Text className="text-[26px]">📹</Text>
+                </TouchableOpacity>
+
+                {/* 🚀 OPTIONS MENU (REPORT & BLOCK) 🚀 */}
+                <TouchableOpacity 
+                  onPress={openChatOptions} 
+                  className="mr-3 bg-gray-100 w-[30px] h-[30px] rounded-full items-center justify-center"
+                >
+                  <Text className="text-[18px] text-gray-600 font-bold leading-[22px]">⋮</Text>
                 </TouchableOpacity>
 
                 <Image source={{uri: chatUser?.image}} className="w-[40px] h-[40px] rounded-[20px]" />
