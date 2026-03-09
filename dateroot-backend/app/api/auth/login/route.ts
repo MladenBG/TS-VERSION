@@ -26,14 +26,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    // 3. Login successful!
+    // 3. Login successful! 
     return NextResponse.json({ 
       success: true, 
       user: { 
         id: user.id, 
         email: user.email, 
         name: user.name, 
-        is_vip: user.is_vip 
+        is_vip: user.is_vip,
+        role: user.role // 🚀 THIS IS THE FIX! It tells your app who is an admin and who is a user.
       } 
     }, { status: 200 });
 

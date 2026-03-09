@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-// 🚀 IMPORTING ADVANCED UI COMPONENTS (SegmentedButtons, Checkbox)
 import { TextInput, Button, Text, SegmentedButtons, Checkbox, Provider as PaperProvider, MD3LightTheme, HelperText } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
 
@@ -14,7 +13,7 @@ const theme = {
     ...MD3LightTheme.colors,
     primary: '#F43F5E',
     background: '#ffffff',
-    secondaryContainer: '#FFE4E6', // Highlight for segmented button
+    secondaryContainer: '#FFE4E6', 
   },
 };
 
@@ -30,38 +29,52 @@ export const SignUpScreen = ({ navigation }: any) => {
   const [showPassword, setShowPassword] = useState(false);
 
   // Live Password Validations
-  const hasMinLength = password.length >= 8;
-  const hasUppercase = /[A-Z]/.test(password);
-  const hasNumber = /\d/.test(password);
-  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  const hasMinLength = (password || "").length >= 8;
+  const hasUppercase = /[A-Z]/.test(password || "");
+  const hasNumber = /\d/.test(password || "");
+  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password || "");
   
   const isPasswordValid = hasMinLength && hasUppercase && hasNumber && hasSpecial;
-  const doPasswordsMatch = password === confirmPassword && password.length > 0;
+  const doPasswordsMatch = password === confirmPassword && (password || "").length > 0;
 
   const handleSignUp = async () => {
-    // Updated validation to check both first and last name
-    if (!firstName || !lastName || !email || !password || !confirmPassword || !gender) return Alert.alert("Error", "Please fill all fields.");
+    if (!firstName || !lastName || !email || !password || !confirmPassword || !gender) {
+      return Alert.alert("Error", "Please fill all fields.");
+    }
+
+    const safeEmail = (email || "").toLowerCase().trim();
+
     if (!isPasswordValid) return Alert.alert("Error", "Please meet all password requirements.");
     if (!doPasswordsMatch) return Alert.alert("Error", "Passwords do not match.");
     if (!is18) return Alert.alert("Error", "You must be 18 or older.");
 
     setIsLoading(true);
     try {
-      // Combining firstName and lastName into 'name' for the backend
+      // 🚀 1. COMBINE NAMES INTO "name" SO DATABASE ACCEPTS IT
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
       const response = await fetch(`${API_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: fullName, email: email.toLowerCase(), password, gender })
+        // 🚀 2. SENDING 'name' TO MATCH THE BACKEND ROUTE
+        body: JSON.stringify({ 
+          name: fullName, 
+          email: safeEmail, 
+          password, 
+          gender 
+        })
       });
+      
       const data = await response.json();
+      
       if (!response.ok) {
         Alert.alert("Signup Failed", data.error || "Something went wrong.");
       } else {
-        navigation.replace('Main');
+        // 🚀 3. PASS THE REAL DATA TO MAIN SCREEN TO HIDE ADMIN DASHBOARD!
+        navigation.replace('Main', { user: data.user });
       }
     } catch (error) {
+      console.error("Signup Error:", error);
       Alert.alert("Network Error", "Could not connect to server.");
     } finally {
       setIsLoading(false);
@@ -73,7 +86,6 @@ export const SignUpScreen = ({ navigation }: any) => {
       <SafeAreaView style={styles.container}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex1}>
           
-          {/* TOP NAV */}
           <View style={styles.navBar}>
             <TouchableOpacity onPress={() => navigation.goBack()}>
               <Feather name="arrow-left" size={28} color="#000" />
@@ -81,7 +93,6 @@ export const SignUpScreen = ({ navigation }: any) => {
           </View>
 
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {/* HEADER */}
             <View style={styles.header}>
               <Text variant="displaySmall" style={styles.title}>Create Account.</Text>
               <Text variant="titleMedium" style={styles.subtitle}>Join DateRoot to start connecting.</Text>
@@ -89,7 +100,6 @@ export const SignUpScreen = ({ navigation }: any) => {
 
             <View style={styles.form}>
               
-              {/* FIRST NAME INPUT */}
               <TextInput
                 mode="outlined"
                 label="First Name"
@@ -100,7 +110,6 @@ export const SignUpScreen = ({ navigation }: any) => {
                 left={<TextInput.Icon icon="account" />}
               />
 
-              {/* LAST NAME INPUT */}
               <TextInput
                 mode="outlined"
                 label="Last Name"
@@ -135,7 +144,6 @@ export const SignUpScreen = ({ navigation }: any) => {
                 right={<TextInput.Icon icon={showPassword ? "eye-off" : "eye"} onPress={() => setShowPassword(!showPassword)} />}
               />
               
-              {/* PROFESSIONAL HELPER TEXT FOR PASSWORD */}
               <View style={styles.requirementsBox}>
                 <Text style={[styles.reqText, hasMinLength ? styles.reqValid : styles.reqInvalid]}>• At least 8 characters</Text>
                 <Text style={[styles.reqText, hasUppercase ? styles.reqValid : styles.reqInvalid]}>• One Uppercase letter</Text>
@@ -153,11 +161,10 @@ export const SignUpScreen = ({ navigation }: any) => {
                 outlineStyle={styles.inputOutline}
                 left={<TextInput.Icon icon="shield-check" />}
               />
-              <HelperText type={doPasswordsMatch ? "info" : "error"} visible={confirmPassword.length > 0}>
+              <HelperText type={doPasswordsMatch ? "info" : "error"} visible={(confirmPassword || "").length > 0}>
                 {doPasswordsMatch ? 'Passwords match' : 'Passwords do not match'}
               </HelperText>
 
-              {/* MODERN SEGMENTED GENDER SELECTION */}
               <Text variant="labelLarge" style={styles.sectionLabel}>I am a:</Text>
               <SegmentedButtons
                 value={gender}
@@ -170,7 +177,6 @@ export const SignUpScreen = ({ navigation }: any) => {
                 style={styles.segmentedBtn}
               />
 
-              {/* NATIVE CHECKBOX FOR 18+ */}
               <Checkbox.Item
                 label="I confirm that I am 18 years or older."
                 status={is18 ? 'checked' : 'unchecked'}

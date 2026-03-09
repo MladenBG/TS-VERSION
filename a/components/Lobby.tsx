@@ -5,9 +5,10 @@ export const Lobby = ({ lobbyMessages, lobbyInput, setLobbyInput, sendLobbyMessa
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
       <Text className="text-[24px] font-bold p-[15px] text-[#333]">Global Lobby Chat</Text>
+      
       <FlatList 
         data={lobbyMessages} 
-        keyExtractor={item => item.id}
+        keyExtractor={(item, index) => item.id ? item.id.toString() : index.toString()}
         renderItem={({item}) => (
           <View className="p-[15px] border-b border-[#F5F5F5]">
             <View className="flex-row justify-between items-center">
@@ -20,6 +21,7 @@ export const Lobby = ({ lobbyMessages, lobbyInput, setLobbyInput, sendLobbyMessa
         contentContainerStyle={{paddingBottom: 20}}
         inverted={false}
       />
+
       <View className="flex-row p-[15px] mb-[80px] border-t border-[#EEE]">
         <TextInput 
           className="flex-1 h-[45px] bg-[#F5F5F5] rounded-[20px] px-[15px] text-black" 
@@ -32,6 +34,7 @@ export const Lobby = ({ lobbyMessages, lobbyInput, setLobbyInput, sendLobbyMessa
           <Text className="text-white font-bold">SEND</Text>
         </TouchableOpacity>
       </View>
+      
     </KeyboardAvoidingView>
   );
 };

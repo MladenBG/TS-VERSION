@@ -49,22 +49,12 @@ import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 const logoImg = require('./assets/logo.png');
 
 // =========================================================================
-// 🚨 THE MASTER URL SWITCH (FIXED FOR JSON PARSE ERROR) 🚨
+// 🚨 THE MASTER URL SWITCH 🚨
 // =========================================================================
-// Because your database is on Port 3000 and your chat is on Port 3001, 
-// we must separate them!
-//const API_URL = "https://jn6hwd5g-3000.euw.devtunnels.ms"; 
-//const SOCKET_URL = "https://jn6hwd5g-3000.euw.devtunnels.ms";
-// 📱 IF TESTING ON PHYSICAL PHONE (Uncomment these two lines):
-// const API_URL = "https://marshall-voltametric-clair.ngrok-free.dev"; 
-// const SOCKET_URL = "https://marshall-voltametric-clair.ngrok-free.dev";
-
-// 💻 IF TESTING ON EMULATOR (Uncomment these two lines):
 const API_URL = "http://10.0.2.2:3000"; 
 const SOCKET_URL = "http://10.0.2.2:3001"; 
 // =========================================================================
 
-// 🚀 FIXED: SOCKET NOW USES THE DYNAMIC SOCKET_URL
 export const socket = io(SOCKET_URL);
 const Stack = createStackNavigator();
 
@@ -79,7 +69,7 @@ export default function App() {
   const [showFilters, setShowFilters] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   
-  const [isAdmin, setIsAdmin] = useState(true); 
+  const [isAdmin, setIsAdmin] = useState(false); 
   const [isVip, setIsVip] = useState(false);
 
   const [messageCount, setMessageCount] = useState(0);
@@ -106,10 +96,21 @@ export default function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   const currentTab = useRef(tab);
 
+  const [lobbyMessages, setLobbyMessages] = useState<any[]>([]);
+  const [lobbyInput, setLobbyInput] = useState('');
+
+  const [myId, setMyId] = useState('');
+  const [myName, setMyName] = useState('');
+  const [myCity, setMyCity] = useState('');
+  
+  const [isPrivate, setIsPrivate] = useState(false); 
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  // 🚀 LOAD USERS, LOBBY HISTORY, AND INBOX HISTORY ON START/REFRESH
   useEffect(() => {
-    const fetchRealUsers = async () => {
+    const fetchInitialData = async () => {
       try {
-        // 🚨 FIXED: Now uses API_URL
+        // 1. Fetch Users
         const res = await fetch(`${API_URL}/api/users`);
         const data = await res.json();
         
@@ -131,35 +132,49 @@ export default function App() {
           setProfiles(formattedProfiles);
         }
 
-        // 🚨 FIXED: Now uses API_URL
+        // 2. Fetch Likes / Views / Gifts
         const likedRes = await fetch(`${API_URL}/api/likes/who-liked-me`);
         const likedData = await likedRes.json();
         if (!likedData.error) setLikedMeProfiles(likedData);
 
-        // 🚨 FIXED: Now uses API_URL
         const viewsRes = await fetch(`${API_URL}/api/views`);
         const viewsData = await viewsRes.json();
         if (!viewsData.error) setViewedMeProfiles(viewsData);
 
-        // 🚨 FIXED: Now uses API_URL
         const giftsRes = await fetch(`${API_URL}/api/gifts`);
         const giftsData = await giftsRes.json();
         if (!giftsData.error) setReceivedGifts(giftsData);
 
+        // 3. Fetch Lobby History from DB 🚀
+        const lobbyRes = await fetch(`${API_URL}/api/lobby`);
+        const lobbyData = await lobbyRes.json();
+        if (!lobbyData.error && Array.isArray(lobbyData)) {
+           setLobbyMessages(lobbyData);
+        }
+
+        // 4. Fetch Inbox History from DB 🚀
+        if (myId) {
+          const msgRes = await fetch(`${API_URL}/api/messages?my_id=${myId}`);
+          const msgData = await msgRes.json();
+          if (!msgData.error) {
+            setMessages(msgData);
+          }
+        }
+
       } catch (error) {
-        console.error("Failed to load data:", error);
+        console.error("Failed to load initial data:", error);
       }
     };
 
-    fetchRealUsers();
-  }, []);
+    fetchInitialData();
+  }, [myId]);
 
+  // 🚀 LOAD SPECIFIC CHAT HISTORY WHEN A USER IS CLICKED
   useEffect(() => {
-    if (chatUser) {
+    if (chatUser && myId) {
       const fetchChatHistory = async () => {
         try {
-          // 🚨 FIXED: Now uses API_URL
-          const res = await fetch(`${API_URL}/api/messages?other_id=${chatUser.id}`);
+          const res = await fetch(`${API_URL}/api/messages?my_id=${myId}&other_id=${chatUser.id}`);
           const history = await res.json();
           if (!history.error) {
             setMessages(prev => ({ ...prev, [chatUser.id]: history }));
@@ -170,7 +185,7 @@ export default function App() {
       };
       fetchChatHistory();
     }
-  }, [chatUser]);
+  }, [chatUser, myId]);
 
   useEffect(() => {
     currentTab.current = tab;
@@ -184,23 +199,9 @@ export default function App() {
   const [swipeIndex, setSwipeIndex] = useState(0);
   const position = useRef(new Animated.ValueXY()).current;
 
-  const [lobbyMessages, setLobbyMessages] = useState([
-    { id: '1', user: 'Luka 9', text: 'Hey from Budva!', time: '12:00' },
-    { id: '2', user: 'Emma 2', text: 'Anyone in Miami?', time: '12:05' },
-    { id: '3', user: 'System', text: 'Welcome to Dateroot Global.', time: '12:10' },
-  ]);
-  const [lobbyInput, setLobbyInput] = useState('');
-
-  const [myName, setMyName] = useState('New User');
-  const [myCity, setMyCity] = useState('Budva');
-  
-  const [isPrivate, setIsPrivate] = useState(false); 
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-
   const toggleInvisibleMode = async (newValue: boolean) => {
     setIsPrivate(newValue); 
     try {
-      // 🚨 FIXED: Now uses API_URL
       await fetch(`${API_URL}/api/settings/invisible`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -226,11 +227,16 @@ export default function App() {
     }
   }, [discoveryMode, radarAnim]);
 
-  // 🚀 SOCKET: INCOMING CALL LISTENER 🚀
+  // 🚀 SOCKET INITIALIZATION & LISTENERS
   useEffect(() => {
-    socket.emit("register_user", myName); 
+    if (myName) {
+      socket.emit("register_user", myName); 
+    }
 
-    const handleReceiveLobby = (msg: any) => setLobbyMessages(prev => [msg, ...prev]);
+    const handleReceiveLobby = (msg: any) => {
+      setLobbyMessages(prev => [msg, ...prev]);
+    };
+    
     socket.on("receive_lobby_msg", handleReceiveLobby);
 
     const handleIncomingCall = (data: any) => {
@@ -336,7 +342,6 @@ export default function App() {
   const handleProfileView = async (user: any) => {
     setSelectedUser(user);
     try {
-      // 🚨 FIXED: Now uses API_URL
       await fetch(`${API_URL}/api/views`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -353,7 +358,6 @@ export default function App() {
     ));
 
     try {
-      // 🚨 FIXED: Now uses API_URL
       await fetch(`${API_URL}/api/likes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -384,21 +388,21 @@ export default function App() {
     return true;
   };
 
-  // 🚀 FIXED: TEMPORARY TO REAL ID SWAP 🚀
+  // 🚀 FIXED: PRIVATE MESSAGES SEND REAL NAME AND ID 
   const handleSendMessage = async () => {
-    if (!chatInput.trim() || !chatUser) return;
+    if (!chatInput.trim() || !chatUser || !myId) return;
     
     if (!checkMessageLimits()) return;
     
     const textToSend = chatInput;
     setChatInput('');
 
-    // 1. Create a TEMPORARY ID so it shows up on the screen instantly
     const tempId = 'temp_' + Date.now().toString();
     const tempMsg = { 
       id: tempId, 
       text: textToSend, 
-      sender: 'me' 
+      sender: 'me',
+      name: myName
     };
     
     setMessages(prev => ({ 
@@ -407,17 +411,14 @@ export default function App() {
     }));
     
     try {
-      // 2. Save it to the database
-      // 🚨 FIXED: Now uses API_URL
       const res = await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ receiver_id: chatUser.id, content: textToSend })
+        body: JSON.stringify({ sender_id: myId, receiver_id: chatUser.id, content: textToSend })
       });
 
       const realDbMessage = await res.json();
 
-      // 3. Swap the Fake ID with the REAL Database ID!
       if (realDbMessage && realDbMessage.id) {
         setMessages(prev => {
           const updatedChat = (prev[chatUser.id] || []).map(m => 
@@ -432,23 +433,40 @@ export default function App() {
     }
   };
 
-  const sendLobbyMessage = () => {
-    if (!lobbyInput.trim()) return;
-
+ // 🚀 FIXED: LOBBY MESSAGES SAVED WITH REAL SENDER_ID
+  const sendLobbyMessage = async () => {
+    if (!lobbyInput.trim() || !myName || !myId) return; // Make sure myId exists
     if (!checkMessageLimits()) return;
     
-    const msg = { 
-      id: Date.now().toString(), 
-      user: myName, 
-      text: lobbyInput, 
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-    };
-    
-    socket.emit("send_lobby_msg", msg);
-    setLobbyMessages(prev => [msg, ...prev]);
+    const msgText = lobbyInput;
     setLobbyInput('');
-  };
+    
+    try {
+      // 1. Send sender_id and content to match the database
+      const res = await fetch(`${API_URL}/api/lobby`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sender_id: myId, content: msgText })
+      });
+      
+      const dbData = await res.json();
+      
+      // 2. Format it for the screen
+      const finalMsg = { 
+        id: dbData.id ? dbData.id.toString() : Date.now().toString(), 
+        user: myName, 
+        text: msgText, 
+        time: dbData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+      };
+      
+      // 3. Broadcast and update screen
+      socket.emit("send_lobby_msg", finalMsg);
+      setLobbyMessages(prev => [finalMsg, ...prev]);
 
+    } catch (error) {
+      console.error("Failed to save lobby message:", error);
+    }
+  };
   const handleStartVideoCall = (user: any) => {
     if (!isAdmin && !isVip) {
       Alert.alert("Premium Feature", "Video Calling is locked. You must subscribe to use the camera!");
@@ -481,7 +499,6 @@ export default function App() {
     Alert.alert("Friend Request Sent", `You sent a friend request to ${user.name}!`);
 
     try {
-      // 🚨 FIXED: Now uses API_URL
       await fetch(`${API_URL}/api/friends`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -502,7 +519,6 @@ export default function App() {
     Alert.alert("Gift Sent!", `You sent a ${giftName} to ${user.name}!`);
     
     try {
-      // 🚨 FIXED: Now uses API_URL
       await fetch(`${API_URL}/api/gifts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -537,7 +553,18 @@ export default function App() {
         <Stack.Screen name="SignUp" component={SignUpScreen} />
 
         <Stack.Screen name="Main">
-          {({ navigation }: any) => {
+          {/* 🚀 SET APP STATE BASED ON LOGIN RESPONSE */}
+          {({ navigation, route }: any) => {
+
+            useEffect(() => {
+              if (route.params?.user) {
+                setMyId(route.params.user.id);
+                setMyName(route.params.user.name || 'User');
+                setIsAdmin(route.params.user.role === 'admin'); 
+                setIsVip(route.params.user.is_vip || false);
+                if (route.params.user.city) setMyCity(route.params.user.city);
+              }
+            }, [route.params]);
 
             const handleLogout = () => {
               Alert.alert("Sign Out", "Are you sure you want to log out?", [

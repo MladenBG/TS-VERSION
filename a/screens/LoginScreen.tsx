@@ -5,15 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextInput, Button, Text, Provider as PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient'; 
+
 // =========================================================================
 // 🚨 THE MASTER URL SWITCH 🚨
 // =========================================================================
-
-// USE NGROK FOR BOTH EMULATOR AND PHONE AT THE SAME TIME:
-//const API_URL = "https://marshall-voltametric-clair.ngrok-free.dev"; 
-//const API_URL = "https://jn6hwd5g-3000.euw.devtunnels.ms";
-// COMMENT OUT THE LOCAL IP:
- const API_URL = "http://10.0.2.2:3000"; 
+const API_URL = "http://10.0.2.2:3000"; 
 // =========================================================================
 
 // Premium Rose Theme
@@ -38,7 +34,6 @@ export const LoginScreen = ({ navigation }: any) => {
     }
     setIsLoading(true);
     try {
-      // 🚨 UPDATED TO USE API_URL CONSISTENTLY
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48,7 +43,8 @@ export const LoginScreen = ({ navigation }: any) => {
       if (!response.ok) {
         Alert.alert("Login Failed", data.error || "Invalid credentials.");
       } else {
-        navigation.replace('Main');
+        // 🚀 THE FIX: PASS THE REAL DATA TO THE MAIN SCREEN TO HIDE ADMIN DASHBOARD!
+        navigation.replace('Main', { user: data.user });
       }
     } catch (error) {
       Alert.alert("Network Error", "Could not connect to the server.");
@@ -106,32 +102,30 @@ export const LoginScreen = ({ navigation }: any) => {
             </View>
 
             {/* PROFESSIONAL BUTTON */}
-            
-<LinearGradient
-  colors={['#F43F5E', '#FF7A59', 'blue']} // 👈 Your Pink-to-Red gradient colors!
-  start={{ x: 0, y: 0 }}
-  end={{ x: 1, y: 0 }}
-  style={{
-    padding: 2, // 👈 THIS IS YOUR BORDER THICKNESS
-    borderRadius: 30, // Must be slightly bigger than the button's radius
-    marginBottom: 12,
-
-  }}
->
-  <Button 
-   onPress={handleLogin} 
-    loading={isLoading}
-    disabled={isLoading}
-    mode="contained" 
-    buttonColor="#1F2937" // 👈 The solid dark center
-    textColor="#FFFFFF"   
-    contentStyle={styles.buttonContent}
-    style={{ borderRadius: 30 }} // 👈 Inner radius
-    labelStyle={styles.buttonLabel}
-  >
-    Sign In
-  </Button>
-</LinearGradient>
+            <LinearGradient
+              colors={['#F43F5E', '#FF7A59', 'blue']} // 👈 Your Pink-to-Red gradient colors!
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{
+                padding: 2, // 👈 THIS IS YOUR BORDER THICKNESS
+                borderRadius: 30, // Must be slightly bigger than the button's radius
+                marginBottom: 12,
+              }}
+            >
+              <Button 
+               onPress={handleLogin} 
+                loading={isLoading}
+                disabled={isLoading}
+                mode="contained" 
+                buttonColor="#1F2937" // 👈 The solid dark center
+                textColor="#FFFFFF"   
+                contentStyle={styles.buttonContent}
+                style={{ borderRadius: 30 }} // 👈 Inner radius
+                labelStyle={styles.buttonLabel}
+              >
+                Sign In
+              </Button>
+            </LinearGradient>
 
              {/* BOTTOM LINK */}
             <View style={styles.footer}>
