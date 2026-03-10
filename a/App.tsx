@@ -18,7 +18,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createNavigationContainerRef } from '@react-navigation/native';
 import io from 'socket.io-client';
+// 🚀 FIXED: CHANGED LogLevel TO LOG_LEVEL FOR NEWER VERSIONS
 import Purchases, { LOG_LEVEL } from 'react-native-purchases'; 
+// 🚀 NEW: IMPORT ASYNC STORAGE FOR PERSISTENCE 🚀
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { 
@@ -109,6 +111,16 @@ export default function App() {
   const [isPrivate, setIsPrivate] = useState(false); 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
+  // 🚀 CORRECTED: PROFILE LIST SYNC ENGINE 🚀
+  // This watcher forces the search list to update your card when you change your picture
+  useEffect(() => {
+    if (myId && myImage) {
+      setProfiles(prevProfiles => 
+        prevProfiles.map(p => p.id === myId ? { ...p, image: myImage } : p)
+      );
+    }
+  }, [myImage, myId]);
+
   // =========================================================================
   // 🚀 LOAD MESSAGE LIMITS FROM PHONE STORAGE ON APP START 🚀
   // =========================================================================
@@ -122,14 +134,12 @@ export default function App() {
           const parsedDate = parseInt(storedDate, 10);
           const fiveDaysInMs = 5 * 24 * 60 * 60 * 1000;
           
-          // If 5 days have passed, wipe it clean back to 0
           if (Date.now() - parsedDate > fiveDaysInMs) {
             setTotalFreeMessages(0);
             setLastResetDate(Date.now());
             await AsyncStorage.setItem('totalFreeMessages', '0');
             await AsyncStorage.setItem('lastResetDate', Date.now().toString());
           } else {
-            // Restore exact count so refreshing doesn't give them 2 more!
             setTotalFreeMessages(storedCount ? parseInt(storedCount, 10) : 0);
             setLastResetDate(parsedDate);
           }
@@ -145,7 +155,7 @@ export default function App() {
 
   // 🚀 HELPER TO SAVE NEW COUNT TO HARD DRIVE
   const incrementMessageCount = async () => {
-    if (isAdmin || isVip) return; // Admins and VIPs never get counted
+    if (isAdmin || isVip) return; 
     const newCount = totalFreeMessages + 1;
     setTotalFreeMessages(newCount);
     await AsyncStorage.setItem('totalFreeMessages', newCount.toString());
@@ -158,7 +168,6 @@ export default function App() {
     const setupRevenueCat = async () => {
       try {
         Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-
         if (Platform.OS === 'android') {
           // Purchases.configure({ apiKey: "YOUR_REVENUECAT_GOOGLE_API_KEY" });
         } else if (Platform.OS === 'ios') {
@@ -168,7 +177,6 @@ export default function App() {
         console.error("Error initializing RevenueCat", e);
       }
     };
-
     setupRevenueCat();
   }, []);
 
@@ -176,7 +184,6 @@ export default function App() {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        // 1. Fetch Users
         const res = await fetch(`${API_URL}/api/users`);
         const data = await res.json();
         
@@ -194,14 +201,13 @@ export default function App() {
             isFavorite: u.isFavorite, 
             distance: Math.floor(Math.random() * 10) + 1,
             isBanned: false,
-            friends: u.friends || [], // Allow dynamic friends array
-            gifts: u.gifts || [],     // Allow dynamic gifts array
-            gallery: u.gallery || []  // Allow dynamic gallery array
+            friends: u.friends || [],
+            gifts: u.gifts || [],
+            gallery: u.gallery || []
           }));
           setProfiles(formattedProfiles);
         }
 
-        // 2. Fetch Likes / Views / Gifts
         const likedRes = await fetch(`${API_URL}/api/likes/who-liked-me`);
         const likedData = await likedRes.json();
         if (!likedData.error) setLikedMeProfiles(likedData);
@@ -214,14 +220,12 @@ export default function App() {
         const giftsData = await giftsRes.json();
         if (!giftsData.error) setReceivedGifts(giftsData);
 
-        // 3. Fetch Lobby History from DB 🚀
         const lobbyRes = await fetch(`${API_URL}/api/lobby`);
         const lobbyData = await lobbyRes.json();
         if (!lobbyData.error && Array.isArray(lobbyData)) {
            setLobbyMessages(lobbyData);
         }
 
-        // 4. Fetch Inbox History from DB 🚀
         if (myId) {
           const msgRes = await fetch(`${API_URL}/api/messages?my_id=${myId}`);
           const msgData = await msgRes.json();
@@ -635,7 +639,8 @@ export default function App() {
                 setIsAdmin(route.params.user.role === 'admin'); 
                 setIsVip(route.params.user.is_vip || false);
                 if (route.params.user.city) setMyCity(route.params.user.city);
-                if (route.params.user.image) setMyImage(route.params.user.image); // 🚀 PICTURE FIX
+                // 🚀 FIXED: LOGIN DATA CATCHER (Line 840)
+                if (route.params.user.image) setMyImage(route.params.user.image);
               }
             }, [route.params]);
 
@@ -659,7 +664,7 @@ export default function App() {
                 {tab !== 'admin' && tab !== 'settings' && tab !== 'inbox' && (
                   <HeaderSwipe 
                     logoImg={logoImg} 
-                    myImage={myImage}       // 🚀 PICTURE ADDED TO SEARCH HEADER 🚀
+                    myImage={myImage}       // 🚀 PICTURE ADDED TO SEARCH HEADER (Line 865)
                     isVip={isVip} 
                     setShowPaywall={setShowPaywall} 
                     tab={tab} 
@@ -1013,7 +1018,7 @@ export default function App() {
                   handleAddFriend={handleAddFriend}
                   handleSendGift={handleSendGift} 
                   myId={myId} 
-                  myImage={myImage}
+                  myImage={myImage} // 🚀 FIXED: IMAGE PASSED TO MODALS (Line 1025)
                   isAdmin={isAdmin}
                   isVip={isVip}
                   setShowPaywall={setShowPaywall}
