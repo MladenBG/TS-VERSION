@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Modal, View, Text, TouchableOpacity, ScrollView, 
   Image, KeyboardAvoidingView, TextInput, Platform, 
@@ -6,26 +6,61 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// 🚀 IMPORT THE NEW COMPONENTS 🚀
 import { Friends } from './Friends';
 import { ImageGallery } from './ImageGallery';
 import { GiftsReceived } from './GiftsReceived';
+import { FriendActionButton } from './FriendActionButton'; 
 
 const { height } = Dimensions.get('window');
-const API_URL = "http://10.0.2.2:3000"; 
+const API_URL = "http://10.0.2.2:3001"; 
 
 export const AllModals = ({ 
   showFilters, setShowFilters, filterGender, setFilterGender, filterSexuality, setFilterSexuality, SEXUALITIES, setCurrentPage,
   selectedUser, setSelectedUser, toggleLike, profiles, setChatUser,
-  chatUser, setChatUserModal, messages, setMessages, chatInput, setChatInput, handleSendMessage,
+  chatUser, setChatUserModal, messages, setMessages, chatInput, setChatInput, handleSendMessage, 
   navigation, 
   handleAddFriend, 
   handleSendGift,
   handleStartVideoCall,
-  myId // 🚀 FIXED: Now accepts myId to properly block/report to the DB
+  myId, 
+  myImage,
+  isAdmin,          
+  isVip,            
+  setShowPaywall,   
+  totalFreeMessages,     
+  setTotalFreeMessages   
 }: any) => {
 
-  // 🚀 DELETE MESSAGE LOGIC
+  const onSendPrivateMessage = () => {
+    if (!isAdmin && !isVip && totalFreeMessages >= 2) {
+      Alert.alert(
+        "Out of Free Messages! 🛑", 
+        "You have used your 2 free messages across the app. Subscribe to VIP to chat unlimited!",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Unlock VIP", onPress: () => {
+              setChatUserModal(null); 
+              if (setShowPaywall) setShowPaywall(true); 
+            } 
+          }
+        ]
+      );
+      return; 
+    }
+
+    if (chatInput.trim()) {
+      handleSendMessage(); 
+      
+      if (!isAdmin && !isVip) {
+        setTotalFreeMessages((prev: number) => prev + 1);
+      }
+    }
+  };
+
+  const placeholderText = (!isAdmin && !isVip) 
+    ? `Write a message... (${Math.max(0, 2 - totalFreeMessages)} left)` 
+    : "Write a message...";
+
   const confirmDeleteMessage = (messageId: string, userId: string) => {
     Alert.alert(
       "Delete Message",
@@ -57,7 +92,6 @@ export const AllModals = ({
     }
   };
 
-  // 🚀 FIXED: REPORT LOGIC (Sends myId and chatUser.id)
   const handleReportUser = () => {
     Alert.alert(
       "Report User",
@@ -88,7 +122,6 @@ export const AllModals = ({
     );
   };
 
-  // 🚀 FIXED: BLOCK LOGIC (Sends myId and chatUser.id)
   const handleBlockUser = () => {
     Alert.alert(
       "Block User",
@@ -111,7 +144,6 @@ export const AllModals = ({
               Alert.alert("Blocked", `${chatUser.name} has been blocked.`);
               setChatUserModal(null); 
             } catch (error) {
-              // Even if DB fails, close the chat to protect the user visually
               Alert.alert("Blocked", `${chatUser.name} has been blocked.`);
               setChatUserModal(null);
             }
@@ -209,37 +241,43 @@ export const AllModals = ({
                   <Text className="text-[16px] text-[#666] mt-1">{selectedUser.town} • {selectedUser.gender} ({selectedUser.sexuality})</Text>
                   <Text className="text-[16px] text-[#444] mt-[15px] mb-[20px] leading-6">{selectedUser.bio}</Text>
                   
-                  {/* 🚀 PUBLIC PROFILE EXTENSIONS (GALLERY, FRIENDS, GIFTS) 🚀 */}
+                  {/* 🚀 ALL DUMMY DATA HAS BEEN RIPPED OUT. ONLY LOADS REAL DATABASE DATA NOW. 🚀 */}
                   
                   <ImageGallery 
-                    initialImages={[
-                      selectedUser.image, 
-                      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&q=80", 
-                      "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&q=80"
-                    ]} 
+                    initialImages={selectedUser?.gallery?.length > 0 ? selectedUser.gallery : [selectedUser?.image]} 
                     isPublicView={true} 
                   />
                   
-                  <Friends friendsList={[
-                    { id: '10', name: 'Milan', town: 'Belgrade', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&q=80' },
-                    { id: '11', name: 'Jovana', town: 'Novi Sad', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&q=80' },
-                    { id: '12', name: 'Petar', town: 'Subotica', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80' }
-                  ]} />
+                  <Friends 
+                    friendsList={selectedUser?.friends || []} 
+                    isAdmin={isAdmin}
+                    isVip={isVip}
+                    setShowPaywall={() => {
+                      setSelectedUser(null); 
+                      if (setShowPaywall) setShowPaywall(true); 
+                    }}
+                  />
 
-                  <GiftsReceived gifts={[
-                    { id: 'g1', senderName: 'Secret Admirer', giftName: 'Diamond', icon: '💎', date: '2 hours ago' },
-                    { id: 'g2', senderName: 'Marko', giftName: 'Coffee', icon: '☕', date: 'Yesterday' }
-                  ]} />
+                  <GiftsReceived 
+                    gifts={selectedUser?.gifts || []} 
+                    isAdmin={isAdmin}
+                    isVip={isVip}
+                    setShowPaywall={() => {
+                      setSelectedUser(null); 
+                      if (setShowPaywall) setShowPaywall(true); 
+                    }}
+                  />
 
-                  {/* 🚀 ACTION BUTTONS 🚀 */}
-                  
-                  <TouchableOpacity 
-                    onPress={() => handleAddFriend(selectedUser)}
-                    className="w-full bg-[#E8F5E9] p-[15px] rounded-[15px] items-center flex-row justify-center mt-[10px] border-2 border-[#4CAF50]"
-                  >
-                    <Text className="text-[20px] mr-2">🤝</Text>
-                    <Text className="text-[16px] font-bold text-[#4CAF50]">Add as Friend (VIP)</Text>
-                  </TouchableOpacity>
+                  <FriendActionButton 
+                    selectedUser={selectedUser}
+                    myId={myId}
+                    isAdmin={isAdmin}
+                    isVip={isVip}
+                    onRequirePaywall={() => {
+                      setSelectedUser(null); 
+                      if (setShowPaywall) setShowPaywall(true); 
+                    }}
+                  />
 
                   <View className="mt-[20px] bg-pink-50/50 p-5 rounded-[20px] border border-pink-100">
                     <Text className="text-[11px] font-black mb-4 text-pink-400 text-center tracking-widest uppercase">Send a Private Gift</Text>
@@ -247,7 +285,12 @@ export const AllModals = ({
                       {['🌹', '💍', '🐻', '🥂'].map(gift => (
                         <TouchableOpacity 
                           key={gift}
-                          onPress={() => handleSendGift(selectedUser, gift)}
+                          onPress={() => {
+                            if (!isAdmin && !isVip) {
+                              setSelectedUser(null); 
+                            }
+                            handleSendGift(selectedUser, gift);
+                          }}
                           className="bg-white w-14 h-14 rounded-full border border-pink-200 shadow-sm mx-2 items-center justify-center elevation-2"
                         >
                           <Text className="text-[28px]">{gift}</Text>
@@ -313,7 +356,6 @@ export const AllModals = ({
                   <Text className="text-[26px]">📹</Text>
                 </TouchableOpacity>
 
-                {/* 🚀 OPTIONS MENU (REPORT & BLOCK) 🚀 */}
                 <TouchableOpacity 
                   onPress={openChatOptions} 
                   className="mr-3 bg-gray-100 w-[30px] h-[30px] rounded-full items-center justify-center"
@@ -343,12 +385,12 @@ export const AllModals = ({
             <View className="flex-row p-[15px] border-t border-[#EEE] bg-white/90">
               <TextInput 
                 className="flex-1 h-[45px] bg-[#F5F5F5] rounded-[20px] px-[15px] text-black" 
-                placeholder="Write a message..." 
+                placeholder={placeholderText} 
                 placeholderTextColor="#999"
                 value={chatInput} 
                 onChangeText={setChatInput} 
               />
-              <TouchableOpacity onPress={handleSendMessage} className="ml-2.5 bg-[#4CAF50] px-[20px] rounded-[20px] justify-center">
+              <TouchableOpacity onPress={onSendPrivateMessage} className="ml-2.5 bg-[#4CAF50] px-[20px] rounded-[20px] justify-center">
                 <Text className="text-white font-bold">SEND</Text>
               </TouchableOpacity>
             </View>

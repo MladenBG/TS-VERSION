@@ -65,6 +65,17 @@ export async function POST(req: Request) {
       }
     }
 
+    // 🚀 7. PERMANENTLY DELETE USER 🚀
+    if (action === 'delete_user') {
+      if (!target_id) return NextResponse.json({ error: 'Missing user ID' }, { status: 400 });
+      
+      // Deletes the user permanently. 
+      // (Make sure your foreign keys in the DB are set to ON DELETE CASCADE)
+      await pool.query('DELETE FROM users WHERE id = $1', [target_id]);
+      
+      return NextResponse.json({ success: true, message: 'User permanently deleted.' });
+    }
+
     return NextResponse.json({ error: 'Invalid admin action' }, { status: 400 });
 
   } catch (error) {

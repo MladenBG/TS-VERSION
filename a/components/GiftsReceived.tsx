@@ -11,12 +11,42 @@ interface Gift {
 
 interface GiftsReceivedProps {
   gifts: Gift[];
+  isAdmin?: boolean;       // 🚀 ADDED: To check roles
+  isVip?: boolean;         // 🚀 ADDED: To check roles
+  setShowPaywall?: (show: boolean) => void; // 🚀 ADDED: To open subscription screen
 }
 
-export const GiftsReceived = ({ gifts }: GiftsReceivedProps) => {
+export const GiftsReceived = ({ 
+  gifts, 
+  isAdmin, 
+  isVip, 
+  setShowPaywall 
+}: GiftsReceivedProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 3; // Keep the list short and clean
   
+  // 🚨 THE VIP PAYWALL LOCK 🚨
+  // If they are not Admin and not VIP, hide the gifts and show the lock screen!
+  if (!isAdmin && !isVip) {
+    return (
+      <View className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4 items-center justify-center">
+        <Text className="text-[50px] mb-3">🎁</Text>
+        <Text className="text-xl font-black text-gray-900 mb-2 text-center">Hidden Gifts</Text>
+        <Text className="text-sm text-gray-500 text-center mb-5 leading-5">
+          Other users might be sending you private gifts! Upgrade to VIP to reveal who sent them and view your collection.
+        </Text>
+        <TouchableOpacity 
+          onPress={() => setShowPaywall && setShowPaywall(true)}
+          className="bg-[#F43F5E] py-3 px-8 rounded-[30px] shadow-sm"
+        >
+          <Text className="text-white font-black tracking-widest uppercase">Unlock VIP</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // 👇 IF THEY ARE ADMIN OR VIP, SHOW THE NORMAL GIFTS LIST 👇
+
   const totalPages = Math.ceil(gifts.length / ITEMS_PER_PAGE) || 1;
   const currentGifts = gifts.slice(
     (currentPage - 1) * ITEMS_PER_PAGE, 

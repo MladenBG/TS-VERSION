@@ -22,9 +22,16 @@ const CLOUDFLARE_APP_ID = "2fe18015-fff1-4368-beea-ac2bd81f0c7d";
 const CLOUDFLARE_TOKEN = "ktdukLavACihcR4tnftWimCDDv-hvU5_kGzaeeD9";
 
 export const CloudflareVideoCall = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { chatUserName, remoteSessionId } = route.params || { chatUserName: 'Match', remoteSessionId: null };
+  
+  // 🚀 WE NOW EXTRACT isAdmin AND isVip FROM THE ROUTE PARAMETERS 🚀
+  const { 
+    chatUserName = 'Match', 
+    remoteSessionId = null,
+    isAdmin = false,
+    isVip = false
+  } = route.params || {};
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -34,7 +41,10 @@ export const CloudflareVideoCall = () => {
   const pc = useRef<RTCPeerConnection | null>(null);
 
   useEffect(() => {
-    startCall();
+    // 🚨 ONLY START THE CAMERA AND CALL IF THEY ARE VIP OR ADMIN 🚨
+    if (isAdmin || isVip) {
+      startCall();
+    }
 
     return () => {
       if (localStream) {
@@ -44,7 +54,7 @@ export const CloudflareVideoCall = () => {
         pc.current.close();
       }
     };
-  }, []);
+  }, [isAdmin, isVip]);
 
   const startCall = async () => {
     try {
@@ -151,6 +161,35 @@ export const CloudflareVideoCall = () => {
     navigation.goBack();
   };
 
+  // 🚨 THE PAYWALL LOCK SCREEN 🚨
+  if (!isAdmin && !isVip) {
+    return (
+      <View className="flex-1 justify-center items-center bg-gray-900 px-6">
+        <Text className="text-[70px] mb-6">🔒</Text>
+        <Text className="text-3xl font-black text-white mb-3 tracking-tight">Premium Feature</Text>
+        <Text className="text-center text-gray-400 mb-10 text-base leading-6">
+          High-definition video calls are strictly reserved for VIP members. Upgrade your account to instantly connect face-to-face!
+        </Text>
+        
+        <TouchableOpacity 
+          className="bg-[#F43F5E] px-8 py-4 rounded-full w-full items-center mb-4 shadow-lg shadow-rose-500/30"
+          // Assuming your subscription screen route is named 'Subscription' or you manage paywall state via Context
+          onPress={() => {
+            navigation.goBack(); 
+            // In App.tsx or your global state, you can trigger setShowPaywall(true) after navigating back
+          }}
+        >
+          <Text className="text-white font-black text-lg tracking-widest uppercase">Go Back to Upgrade</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => navigation.goBack()} className="p-4 mt-2">
+          <Text className="text-gray-500 font-bold">Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // 👇 NORMAL VIDEO CALL UI FOR VIPS AND ADMINS 👇
   return (
     <View className="flex-1 bg-black">
       {remoteStream ? (
@@ -168,7 +207,7 @@ export const CloudflareVideoCall = () => {
       )}
 
       {localStream && (
-        <View className="absolute top-12 right-5 w-[100px] h-[150px] rounded-2xl overflow-hidden border-2 border-green-400 shadow-lg z-10">
+        <View className="absolute top-12 right-5 w-[100px] h-[150px] rounded-2xl overflow-hidden border-2 border-green-400 shadow-lg z-10 bg-black">
           <RTCView 
             streamURL={localStream.toURL()} 
             style={{ flex: 1 }} 

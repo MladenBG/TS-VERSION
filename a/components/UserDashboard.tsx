@@ -1,49 +1,73 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Friends } from './Friends';
 import { ImageGallery } from './ImageGallery';
 import { GiftsReceived } from './GiftsReceived';
+import { FriendRequests } from './FriendRequests'; 
+
+// 🚀 FIXED: POINTING TO PORT 3001 TO MATCH BACKEND
+const API_URL = "http://10.0.2.2:3001"; 
 
 interface UserDashboardProps {
+  myId: string;                     
+  myImage: string;                  
+  setMyImage: (url: string) => void; 
   myName: string;
   myCity: string;
   isVip: boolean;
+  isAdmin: boolean; 
   setShowPaywall: (show: boolean) => void;
   openEditProfile: () => void;
   receivedGifts: any[];
 }
 
 export const UserDashboard = ({ 
+  myId,
+  myImage,
+  setMyImage,
   myName, 
   myCity, 
   isVip, 
+  isAdmin, 
   setShowPaywall, 
   openEditProfile, 
   receivedGifts 
 }: UserDashboardProps) => {
 
-  // 🚀 NEW: State for your main profile picture
-  const [profilePic, setProfilePic] = useState<string | null>(null);
+  const [profilePic, setProfilePic] = useState<string | null>(myImage || null);
   const [isUploadingPic, setIsUploadingPic] = useState(false);
 
-  // STARTING BLANK: So you can upload your actual photos!
+  // Sync if props update
+  useEffect(() => {
+    if (myImage) setProfilePic(myImage);
+  }, [myImage]);
+
   const myImages: string[] = [];
 
-  // DUMMY DATA FOR UI
-  const myFriends = [
-    { id: '1', name: 'Luka', town: 'Belgrade', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&q=80' },
-    { id: '2', name: 'Elena', town: 'Novi Sad', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&q=80' }
-  ];
+  // 🚀 FIXED: RIPPED OUT FAKE HARDCODED FRIENDS 🚀
+  const [myFriends, setMyFriends] = useState<any[]>([]);
 
-  const defaultGifts = [
-    { id: 'g1', senderName: 'Elena', giftName: 'Rose', icon: '🌹', date: 'Today, 10:45 AM' }
-  ];
+  // 🚀 FIXED: RIPPED OUT FAKE HARDCODED REQUESTS 🚀
+  const [receivedRequests, setReceivedRequests] = useState<any[]>([]);
+  const [sentRequests, setSentRequests] = useState<any[]>([]);
 
-  const displayGifts = receivedGifts.length > 0 ? receivedGifts : defaultGifts;
+  // Note for future you: To load REAL friends from DB, add this:
+  // useEffect(() => {
+  //   fetch(`${API_URL}/api/friends/${myId}`).then(res => res.json()).then(data => setMyFriends(data));
+  // }, [myId]);
 
-  // 🚀 NEW: The Cloudflare Upload Logic for the Main Avatar
+  const handleRemoveFriend = (friendId: string) => {
+    setMyFriends(prevFriends => prevFriends.filter(f => f.id !== friendId));
+  };
+  const handleAcceptRequest = (id: string) => setReceivedRequests(prev => prev.filter(req => req.id !== id));
+  const handleDeclineRequest = (id: string) => setReceivedRequests(prev => prev.filter(req => req.id !== id));
+  const handleCancelRequest = (id: string) => setSentRequests(prev => prev.filter(req => req.id !== id));
+
+  // 🚀 RIPPED OUT FAKE GIFTS. It now defaults to empty if the DB returns nothing 🚀
+  const displayGifts = receivedGifts.length > 0 ? receivedGifts : [];
+
   const handleUploadProfilePic = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
@@ -55,43 +79,73 @@ export const UserDashboard = ({
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [1, 1], // Perfect square crop for the circle avatar
+      aspect: [1, 1], 
       quality: 1,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setIsUploadingPic(true);
       try {
-        // Squash to WebP
+        console.log("1. Starting image manipulation...");
+        // 🚀 FORCE WEBP FORMAT 🚀
         const manipResult = await ImageManipulator.manipulateAsync(
           result.assets[0].uri,
-          [{ resize: { width: 500 } }], // Smaller size for avatars
-          { compress: 0.7, format: ImageManipulator.SaveFormat.WEBP }
+          [{ resize: { width: 500 } }], 
+          { compress: 0.7, format: ImageManipulator.SaveFormat.WEBP } 
         );
 
-        // Get Cloudflare Ticket (Change 10.0.2.2 to your Wi-Fi IP if on real phone!)
-        const response = await fetch('http://10.0.2.2:3000/api/get-upload-url');
-        const { uploadUrl, publicUrl } = await response.json();
+        console.log("2. Requesting pre-signed URL from backend...");
+        const response = await fetch(`${API_URL}/api/get-upload-url`);
+        
+        if (!response.ok) {
+          throw new Error(`Backend failed with status: ${response.status}`);
+        }
 
-        // Upload to Cloudflare R2
+        const data = await response.json();
+        const uploadUrl = data.uploadUrl;
+        const publicUrl = data.publicUrl;
+        
+        if (!uploadUrl) throw new Error("Backend did not return an uploadUrl");
+        console.log("3. Got URL from backend! Converting image to binary Blob...");
+
         const imageResponse = await fetch(manipResult.uri);
         const blob = await imageResponse.blob();
         
+        console.log(`4. Blob created successfully. Size: ${blob.size} bytes. Uploading to Cloudflare...`);
+
+        // 🚀 SENDING AS image/webp TO CLOUDFLARE 🚀
         const uploadRes = await fetch(uploadUrl, {
           method: 'PUT',
           body: blob,
-          headers: { 'Content-Type': 'image/webp' },
+          headers: { 
+            'Content-Type': 'image/webp' 
+          },
         });
 
         if (uploadRes.ok) {
-          setProfilePic(publicUrl); // Update the UI instantly
-          Alert.alert("Looking Good!", "Profile picture updated.");
+          console.log("5. UPLOAD SUCCESSFUL!");
+          
+          // 🚀 1. Update the Local App View Immediately
+          setProfilePic(publicUrl); 
+          if (setMyImage) setMyImage(publicUrl); // Sync to App.tsx
+
+          // 🚀 2. SAVE IT PERMANENTLY IN POSTGRESQL DATABASE
+          await fetch(`${API_URL}/api/users/update-image`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: myId, imageUrl: publicUrl })
+          });
+
+          Alert.alert("Looking Good!", "Profile picture saved to database.");
         } else {
-          throw new Error("Cloudflare rejected the upload");
+          // 🚀 IF CLOUDFLARE REJECTS IT, READ THE ERROR MESSAGE!
+          const errorText = await uploadRes.text();
+          console.error("❌ CLOUDFLARE REJECTED THE UPLOAD. Reason:", errorText);
+          Alert.alert("Upload Rejected", "Cloudflare blocked the file. Check terminal.");
         }
-      } catch (error) {
-        console.error("Profile Pic Upload Error:", error);
-        Alert.alert("Upload Failed", "Could not update profile picture.");
+      } catch (error: any) {
+        console.error("❌ UPLOAD CRASHED:", error.message || error);
+        Alert.alert("Upload Failed", error.message || "Could not connect to server.");
       } finally {
         setIsUploadingPic(false);
       }
@@ -101,12 +155,9 @@ export const UserDashboard = ({
   return (
     <View className="flex-1 bg-gray-50">
       
-      {/* 🟢 HEADER: Profile Info & Edit Button */}
       <View className="bg-white px-6 pt-10 pb-6 rounded-b-3xl shadow-sm border-b border-gray-100 mb-4 z-10">
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center">
-            
-            {/* 🚀 THE CLICKABLE AVATAR 🚀 */}
             <TouchableOpacity 
               onPress={handleUploadProfilePic}
               disabled={isUploadingPic}
@@ -119,8 +170,6 @@ export const UserDashboard = ({
               ) : (
                 <Text className="text-3xl text-gray-400">👤</Text>
               )}
-              
-              {/* Little edit badge */}
               {!isUploadingPic && (
                 <View className="absolute bottom-0 right-0 bg-black/50 w-full py-0.5 items-center">
                   <Text className="text-white text-[8px] font-bold tracking-widest uppercase">Edit</Text>
@@ -161,13 +210,38 @@ export const UserDashboard = ({
         )}
       </View>
 
-      {/* 🟢 BODY */}
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        <ImageGallery initialImages={myImages} />
-        <Friends friendsList={myFriends} />
-        <GiftsReceived gifts={displayGifts} />
-      </ScrollView>
+        
+        {/* 🚀 FIXED: ADDED USER ID SO GALLERY IMAGES CAN BE SAVED TO DATABASE 🚀 */}
+        <ImageGallery initialImages={myImages} isPublicView={false} userId={myId} />
+        
+        <FriendRequests 
+          receivedRequests={receivedRequests}
+          sentRequests={sentRequests}
+          onAcceptRequest={handleAcceptRequest}
+          onDeclineRequest={handleDeclineRequest}
+          onCancelRequest={handleCancelRequest}
+          isAdmin={isAdmin}
+          isVip={isVip}
+          setShowPaywall={setShowPaywall}
+        />
 
+        <Friends 
+          friendsList={myFriends} 
+          isEditable={true} 
+          onRemoveFriend={handleRemoveFriend} 
+          isAdmin={isAdmin}
+          isVip={isVip}
+          setShowPaywall={setShowPaywall}
+        />
+        
+        <GiftsReceived 
+          gifts={displayGifts} 
+          isAdmin={isAdmin}
+          isVip={isVip}
+          setShowPaywall={setShowPaywall}
+        />
+      </ScrollView>
     </View>
   );
 };

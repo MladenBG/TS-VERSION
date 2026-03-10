@@ -85,6 +85,11 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages,
           ));
         }
 
+        // 🚀 NEW: UI Update for deleting user
+        if (action === 'delete_user') {
+          setProfiles((prev: any[]) => prev.filter((p: any) => p.id !== target_id));
+        }
+
       } else {
         Alert.alert("Error", data.error);
       }
@@ -135,6 +140,14 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages,
     Alert.alert("Remove IP Block", `Unban ${user.name} and remove their IP from the blacklist?`, [
       { text: "Cancel", style: "cancel" },
       { text: "Unblock IP", style: "default", onPress: () => executeAdminAction('unblock_ip', user.id, `${user.name} has been completely unblocked.`) }
+    ]);
+  };
+
+  // 🚀 NEW: ADMIN HARD DELETE
+  const handleDeleteUser = (user: any) => {
+    Alert.alert("🔥 PERMANENT DELETE", `Are you sure you want to completely erase ${user.name} from the database? This cannot be undone.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "DELETE FOREVER", style: "destructive", onPress: () => executeAdminAction('delete_user', user.id, `${user.name} was permanently deleted.`) }
     ]);
   };
 
@@ -230,37 +243,47 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages,
                     <Text className="text-[10px] font-mono text-gray-400 mt-1">ID: {u.id}</Text>
                   </View>
                   
-                  {u.isBanned ? (
-                    <View className="flex-col">
-                      <TouchableOpacity 
-                        onPress={() => handleUnbanUser(u)} 
-                        className="bg-green-500 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
-                      >
-                        <Text className="text-white text-[10px] font-black tracking-wider">UNBAN</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        onPress={() => handleUnblockIpUser(u)} 
-                        className="bg-green-700 py-1.5 px-3 rounded-md shadow-sm elevation-1 items-center"
-                      >
-                        <Text className="text-white text-[10px] font-black tracking-wider">UNBLOCK IP</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <View className="flex-col">
-                      <TouchableOpacity 
-                        onPress={() => handleBanUser(u)} 
-                        className="bg-orange-500 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
-                      >
-                        <Text className="text-white text-[10px] font-black tracking-wider">BAN</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        onPress={() => handleIpBlockUser(u)} 
-                        className="bg-gray-900 py-1.5 px-3 rounded-md shadow-sm elevation-1 items-center"
-                      >
-                        <Text className="text-white text-[10px] font-black tracking-wider">IP BLOCK</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
+                  <View className="flex-col">
+                    {u.isBanned ? (
+                      <>
+                        <TouchableOpacity 
+                          onPress={() => handleUnbanUser(u)} 
+                          className="bg-green-500 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
+                        >
+                          <Text className="text-white text-[10px] font-black tracking-wider">UNBAN</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          onPress={() => handleUnblockIpUser(u)} 
+                          className="bg-green-700 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
+                        >
+                          <Text className="text-white text-[10px] font-black tracking-wider">UNBLOCK IP</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        <TouchableOpacity 
+                          onPress={() => handleBanUser(u)} 
+                          className="bg-orange-500 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
+                        >
+                          <Text className="text-white text-[10px] font-black tracking-wider">BAN</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          onPress={() => handleIpBlockUser(u)} 
+                          className="bg-gray-900 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
+                        >
+                          <Text className="text-white text-[10px] font-black tracking-wider">IP BLOCK</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                    
+                    {/* 🚀 NEW: THE RED DELETE BUTTON */}
+                    <TouchableOpacity 
+                      onPress={() => handleDeleteUser(u)} 
+                      className="bg-red-600 py-1.5 px-3 rounded-md shadow-sm elevation-1 items-center"
+                    >
+                      <Text className="text-white text-[10px] font-black tracking-wider">DELETE</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))}
             </View>

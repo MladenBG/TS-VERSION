@@ -3,30 +3,38 @@ import { Modal, ScrollView, TouchableOpacity, View, Text, Alert, Platform, Activ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Purchases from 'react-native-purchases';
 
-export const Subscription = ({ showPaywall, setShowPaywall, handlePayment }: any) => {
+// 🚀 ADDED isAdmin TO PROPS
+export const Subscription = ({ showPaywall, setShowPaywall, handlePayment, isAdmin }: any) => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   // --- GOOGLE PAY / REVENUECAT LOGIC ---
   const triggerGooglePay = async (planIdentifier: string) => {
     setIsProcessing(true);
+    
     try {
-      // This line literally opens the Google Play payment sheet at the bottom of the Android phone
-      // Replace these with the exact IDs you make in Google Play Console
-      let productId = '';
-      if (planIdentifier === 'Daily') {
-        productId = 'dateroot_daily';
-      } else if (planIdentifier === 'Weekly') {
-        productId = 'dateroot_weekly';
+      // 🚨 CHECK IF IT IS THE ADMIN 🚨
+      if (isAdmin) {
+        // ADMIN OVERRIDE: Give the Admin instant VIP access to test the app features
+        Alert.alert("Admin Override", `Instantly unlocked ${planIdentifier} plan for Admin testing.`);
+        handlePayment(planIdentifier); // This actually unlocks the app
       } else {
-        productId = 'dateroot_monthly';
+        // REGULAR USER: Block them. They cannot get VIP for free.
+        Alert.alert(
+          "Payment System Offline", 
+          "Google Play billing is currently being configured for launch. Real payments cannot be processed right now. Only Admins can bypass this screen."
+        );
+        // Notice we DO NOT call handlePayment() here! They stay locked.
       }
-      
-      // UNCOMMENT THIS LINE WHEN YOUR GOOGLE PLAY ACCOUNT IS LINKED:
+
+      // =========================================================================
+      // 🚀 WHEN YOU LAUNCH ON GOOGLE PLAY, DELETE THE IF/ELSE ABOVE AND UNCOMMENT THIS: 🚀
+      // =========================================================================
+      // let productId = planIdentifier === 'Daily' ? 'dateroot_daily' : planIdentifier === 'Weekly' ? 'dateroot_weekly' : 'dateroot_monthly';
       // const { customerInfo } = await Purchases.purchaseProduct(productId);
-      
-      // For now, we simulate a successful Google Pay transaction and tell App.tsx to unlock VIP
-      handlePayment(planIdentifier);
-      
+      // if (typeof customerInfo.entitlements.active['vip_access'] !== "undefined") {
+      //   handlePayment(planIdentifier); 
+      // }
+
     } catch (e: any) {
       if (!e.userCancelled) {
         Alert.alert("Google Pay Error", e.message);
@@ -39,11 +47,13 @@ export const Subscription = ({ showPaywall, setShowPaywall, handlePayment }: any
   const restoreGooglePurchases = async () => {
     setIsProcessing(true);
     try {
-      // This checks Google Play to see if they already bought VIP on an old phone
-      // const purchaserInfo = await Purchases.restorePurchases();
-      
-      Alert.alert("Google Play", "Purchases successfully restored.");
-      setShowPaywall(false);
+      if (isAdmin) {
+        Alert.alert("Admin Override", "Simulated restoring purchases.");
+        handlePayment('Restored');
+        setShowPaywall(false);
+      } else {
+        Alert.alert("Restore System Offline", "Billing is currently being configured.");
+      }
     } catch (e: any) {
       Alert.alert("Restore Error", e.message);
     } finally {

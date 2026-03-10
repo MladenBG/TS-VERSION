@@ -1,3 +1,10 @@
+FOR SCRAMBLING CODE!!!!
+
+
+Obfuscation: If you use tools like ProGuard or R8 before uploading, your code is
+
+
+
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
 # Getting Started
@@ -470,3 +477,17 @@ REDIS INSTALING
 
 
 npm install redis "@socket.io/redis-adapter"
+
+
+
+INSTALL GPS LOCATION
+
+npx expo install expo-location
+
+
+
+FOR REFRESHING PROBLEMS FO MESSAGES SUBSCRIPTIONS CUNT
+
+
+npx expo install @react-native-async-storage/async-storage
+

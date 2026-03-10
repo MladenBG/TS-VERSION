@@ -7,10 +7,6 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { Pool } = require('pg'); 
 
-// 🚀 1. IMPORT REDIS FOR 1 MILLION USER SCALING 🚀
-const { createClient } = require("redis");
-const { createAdapter } = require("@socket.io/redis-adapter");
-
 const app = express();
 const server = http.createServer(app);
 
@@ -35,30 +31,6 @@ const io = new Server(server, {
 });
 
 // ==========================================
-// 🚀 REDIS ADAPTER SETUP (HORIZONTAL SCALING) 🚀
-// ==========================================
-async function setupRedis() {
-  try {
-    // NOTE: In production, change this to your cloud Redis URL (e.g., AWS ElastiCache / Redis Labs)
-    const pubClient = createClient({ url: "redis://localhost:6379" });
-    const subClient = pubClient.duplicate();
-
-    pubClient.on('error', (err) => console.error('Redis PubClient Error', err));
-    subClient.on('error', (err) => console.error('Redis SubClient Error', err));
-
-    await Promise.all([pubClient.connect(), subClient.connect()]);
-
-    // Attach Redis to Socket.io to sync messages across multiple servers
-    io.adapter(createAdapter(pubClient, subClient));
-    console.log("🔥 Redis Adapter Connected: Ready for 1,000,000+ Users!");
-  } catch (err) {
-    console.error("❌ Redis connection failed. (If testing locally without Redis, standard Socket.io will still work)", err);
-  }
-}
-
-setupRedis();
-
-// ==========================================
 // 🚀 CLOUDFLARE R2 CONFIGURATION 🚀
 // ==========================================
 const s3 = new S3Client({
@@ -70,15 +42,16 @@ const s3 = new S3Client({
   },
 });
 
-// The endpoint your Expo app will call to get an upload ticket
+// 🚀 GENERATE CLOUDFLARE UPLOAD TICKET 🚀
 app.get('/api/get-upload-url', async (req, res) => {
   try {
+    // WEBP FORMAT ENFORCED
     const fileName = `profile_${Date.now()}_${Math.floor(Math.random() * 10000)}.webp`;
 
     const command = new PutObjectCommand({
       Bucket: 'imagespic', 
       Key: fileName,
-      ContentType: 'image/webp',
+      ContentType: 'image/webp', // MUST BE WEBP TO MATCH FRONTEND
     });
 
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 });
@@ -91,6 +64,27 @@ app.get('/api/get-upload-url', async (req, res) => {
   } catch (error) {
     console.error("Error generating R2 URL:", error);
     res.status(500).json({ error: "Failed to generate upload URL" });
+  }
+});
+
+// ==========================================
+// 🚀 DATABASE UPDATE ROUTES 🚀
+// ==========================================
+
+// 🚀 SAVE NEW PROFILE PICTURE TO POSTGRESQL DB 🚀
+app.post('/api/users/update-image', async (req, res) => {
+  const { userId, imageUrl } = req.body;
+  
+  if (!userId || !imageUrl) {
+    return res.status(400).json({ error: "Missing userId or imageUrl" });
+  }
+
+  try {
+    await pool.query('UPDATE users SET image = $1 WHERE id = $2', [imageUrl, userId]);
+    res.json({ success: true, message: "Database updated with new image" });
+  } catch (error) {
+    console.error("DB Update Error:", error);
+    res.status(500).json({ error: "Failed to update database" });
   }
 });
 
@@ -194,7 +188,7 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("receive_lobby_msg", data);
   });
 
-  // 🚀 REGISTER USER INTO SECURE ROOMS (MILLION-USER SCALE)
+  // 🚀 REGISTER USER INTO SECURE ROOMS
   socket.on("register_user", (userData) => {
     // Legacy support for plain string names
     if (typeof userData === 'string') {
@@ -205,13 +199,13 @@ io.on("connection", (socket) => {
     else if (userData && userData.id) {
       socket.join(userData.id);    // For Private DMs
       socket.join(userData.name);  // For Video Calls
-      console.log(`User ID: ${userData.id} registered for scalable private routing.`);
+      console.log(`User ID: ${userData.id} registered for private routing.`);
     }
   });
 
-  // 💬 REAL-TIME PRIVATE MESSAGING (SCALABLE ROUTING)
+  // 💬 REAL-TIME PRIVATE MESSAGING
   socket.on("private_message", ({ receiverId, messageData }) => {
-    // Instantly beams the message ONLY to the exact user's room across any Redis server
+    // Instantly beams the message ONLY to the exact user's room
     socket.to(receiverId).emit("receive_private_msg", messageData);
   });
 
@@ -237,5 +231,5 @@ io.on("connection", (socket) => {
 // 🚀 RUNNING ON PORT 3001
 const PORT = 3001; 
 server.listen(PORT, () => {
-  console.log(`🚀 DateRoot Million-User Socket/Signaling Server running on port ${PORT}`);
+  console.log(`🚀 DateRoot Socket/Signaling Server running on port ${PORT}`);
 });

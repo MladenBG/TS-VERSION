@@ -11,12 +11,15 @@ import {
   StatusBar, 
   Animated, 
   PanResponder,
-  Vibration
+  Vibration,
+  Platform
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createNavigationContainerRef } from '@react-navigation/native';
 import io from 'socket.io-client';
+import Purchases, { LOG_LEVEL } from 'react-native-purchases'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { 
   ALL_PROFILES, 
@@ -72,9 +75,10 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false); 
   const [isVip, setIsVip] = useState(false);
 
-  const [messageCount, setMessageCount] = useState(0);
+  // 🚀 SHARED MESSAGE LIMIT STATE 🚀
+  const [totalFreeMessages, setTotalFreeMessages] = useState(0);
   const [lastResetDate, setLastResetDate] = useState(Date.now());
-  
+  const [myImage, setMyImage] = useState("");  
   const [profiles, setProfiles] = useState<any[]>([]);
   const [likedMeProfiles, setLikedMeProfiles] = useState<any[]>([]);
   const [viewedMeProfiles, setViewedMeProfiles] = useState<any[]>([]);
@@ -87,7 +91,7 @@ export default function App() {
   
   const [adminSearch, setAdminSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [chatUser, setChatUser] = useState<any>(null);
   const [messages, setMessages] = useState<Record<string, any[]>>({});
@@ -98,13 +102,75 @@ export default function App() {
 
   const [lobbyMessages, setLobbyMessages] = useState<any[]>([]);
   const [lobbyInput, setLobbyInput] = useState('');
-
-  const [myId, setMyId] = useState('');
+  const [myId, setMyId] = useState("test_user_id");
   const [myName, setMyName] = useState('');
   const [myCity, setMyCity] = useState('');
   
   const [isPrivate, setIsPrivate] = useState(false); 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  // =========================================================================
+  // 🚀 LOAD MESSAGE LIMITS FROM PHONE STORAGE ON APP START 🚀
+  // =========================================================================
+  useEffect(() => {
+    const loadMessageLimits = async () => {
+      try {
+        const storedCount = await AsyncStorage.getItem('totalFreeMessages');
+        const storedDate = await AsyncStorage.getItem('lastResetDate');
+
+        if (storedDate) {
+          const parsedDate = parseInt(storedDate, 10);
+          const fiveDaysInMs = 5 * 24 * 60 * 60 * 1000;
+          
+          // If 5 days have passed, wipe it clean back to 0
+          if (Date.now() - parsedDate > fiveDaysInMs) {
+            setTotalFreeMessages(0);
+            setLastResetDate(Date.now());
+            await AsyncStorage.setItem('totalFreeMessages', '0');
+            await AsyncStorage.setItem('lastResetDate', Date.now().toString());
+          } else {
+            // Restore exact count so refreshing doesn't give them 2 more!
+            setTotalFreeMessages(storedCount ? parseInt(storedCount, 10) : 0);
+            setLastResetDate(parsedDate);
+          }
+        } else {
+          await AsyncStorage.setItem('lastResetDate', Date.now().toString());
+        }
+      } catch (e) {
+        console.error("Failed to load storage", e);
+      }
+    };
+    loadMessageLimits();
+  }, []);
+
+  // 🚀 HELPER TO SAVE NEW COUNT TO HARD DRIVE
+  const incrementMessageCount = async () => {
+    if (isAdmin || isVip) return; // Admins and VIPs never get counted
+    const newCount = totalFreeMessages + 1;
+    setTotalFreeMessages(newCount);
+    await AsyncStorage.setItem('totalFreeMessages', newCount.toString());
+  };
+
+  // =========================================================================
+  // 🚀 REVENUECAT INITIALIZATION FOR GOOGLE PLAY 🚀
+  // =========================================================================
+  useEffect(() => {
+    const setupRevenueCat = async () => {
+      try {
+        Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+
+        if (Platform.OS === 'android') {
+          // Purchases.configure({ apiKey: "YOUR_REVENUECAT_GOOGLE_API_KEY" });
+        } else if (Platform.OS === 'ios') {
+          // Purchases.configure({ apiKey: "YOUR_REVENUECAT_APPLE_API_KEY" });
+        }
+      } catch (e) {
+        console.error("Error initializing RevenueCat", e);
+      }
+    };
+
+    setupRevenueCat();
+  }, []);
 
   // 🚀 LOAD USERS, LOBBY HISTORY, AND INBOX HISTORY ON START/REFRESH
   useEffect(() => {
@@ -127,7 +193,10 @@ export default function App() {
             is_vip: u.is_vip,
             isFavorite: u.isFavorite, 
             distance: Math.floor(Math.random() * 10) + 1,
-            isBanned: false
+            isBanned: false,
+            friends: u.friends || [], // Allow dynamic friends array
+            gifts: u.gifts || [],     // Allow dynamic gifts array
+            gallery: u.gallery || []  // Allow dynamic gallery array
           }));
           setProfiles(formattedProfiles);
         }
@@ -373,22 +442,25 @@ export default function App() {
 
     const fiveDaysInMs = 5 * 24 * 60 * 60 * 1000;
     if (Date.now() - lastResetDate > fiveDaysInMs) {
-      setMessageCount(0); 
+      setTotalFreeMessages(0); 
       setLastResetDate(Date.now());
-      return true; 
     }
 
-    if (messageCount >= 4) {
-      Alert.alert("Out of Free Messages", "You used your 4 free messages. Subscribe to continue chatting, or wait 5 days!");
-      setShowPaywall(true);
+    if (totalFreeMessages >= 2) {
+      Alert.alert(
+        "Out of Free Messages! 🛑", 
+        "You have used your 2 free messages across the app. Subscribe to VIP to chat unlimited!",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Unlock VIP", onPress: () => setShowPaywall(true) } 
+        ]
+      );
       return false; 
     }
 
-    setMessageCount(prev => prev + 1);
     return true;
   };
 
-  // 🚀 FIXED: PRIVATE MESSAGES SEND REAL NAME AND ID 
   const handleSendMessage = async () => {
     if (!chatInput.trim() || !chatUser || !myId) return;
     
@@ -427,22 +499,22 @@ export default function App() {
           return { ...prev, [chatUser.id]: updatedChat };
         });
       }
+      incrementMessageCount(); 
 
     } catch (error) {
       console.error("Database connection failed for message:", error);
     }
   };
 
- // 🚀 FIXED: LOBBY MESSAGES SAVED WITH REAL SENDER_ID
   const sendLobbyMessage = async () => {
-    if (!lobbyInput.trim() || !myName || !myId) return; // Make sure myId exists
+    if (!lobbyInput.trim() || !myName || !myId) return; 
+    
     if (!checkMessageLimits()) return;
     
     const msgText = lobbyInput;
     setLobbyInput('');
     
     try {
-      // 1. Send sender_id and content to match the database
       const res = await fetch(`${API_URL}/api/lobby`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -451,7 +523,6 @@ export default function App() {
       
       const dbData = await res.json();
       
-      // 2. Format it for the screen
       const finalMsg = { 
         id: dbData.id ? dbData.id.toString() : Date.now().toString(), 
         user: myName, 
@@ -459,9 +530,10 @@ export default function App() {
         time: dbData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
       };
       
-      // 3. Broadcast and update screen
       socket.emit("send_lobby_msg", finalMsg);
       setLobbyMessages(prev => [finalMsg, ...prev]);
+
+      incrementMessageCount(); 
 
     } catch (error) {
       console.error("Failed to save lobby message:", error);
@@ -554,7 +626,6 @@ export default function App() {
         <Stack.Screen name="SignUp" component={SignUpScreen} />
 
         <Stack.Screen name="Main">
-          {/* 🚀 SET APP STATE BASED ON LOGIN RESPONSE */}
           {({ navigation, route }: any) => {
 
             useEffect(() => {
@@ -564,6 +635,7 @@ export default function App() {
                 setIsAdmin(route.params.user.role === 'admin'); 
                 setIsVip(route.params.user.is_vip || false);
                 if (route.params.user.city) setMyCity(route.params.user.city);
+                if (route.params.user.image) setMyImage(route.params.user.image); // 🚀 PICTURE FIX
               }
             }, [route.params]);
 
@@ -587,6 +659,7 @@ export default function App() {
                 {tab !== 'admin' && tab !== 'settings' && tab !== 'inbox' && (
                   <HeaderSwipe 
                     logoImg={logoImg} 
+                    myImage={myImage}       // 🚀 PICTURE ADDED TO SEARCH HEADER 🚀
                     isVip={isVip} 
                     setShowPaywall={setShowPaywall} 
                     tab={tab} 
@@ -728,7 +801,12 @@ export default function App() {
                       lobbyMessages={lobbyMessages} 
                       lobbyInput={lobbyInput} 
                       setLobbyInput={setLobbyInput} 
-                      sendLobbyMessage={sendLobbyMessage} 
+                      sendLobbyMessage={sendLobbyMessage}
+                      isAdmin={isAdmin}          
+                      isVip={isVip}            
+                      setShowPaywall={setShowPaywall}
+                      totalFreeMessages={totalFreeMessages} 
+                      setTotalFreeMessages={setTotalFreeMessages}
                     />
                   )}
 
@@ -854,6 +932,9 @@ export default function App() {
                             </TouchableOpacity>
                           </View>
                           <EditProfile 
+                            myId={myId}             
+                            myImage={myImage}       
+                            setMyImage={setMyImage} 
                             myName={myName} 
                             setMyName={setMyName}
                             myCity={myCity} 
@@ -868,12 +949,16 @@ export default function App() {
                       ) : (
                         <View className="flex-1 bg-white mt-4 rounded-t-3xl overflow-hidden shadow-lg">
                           <UserDashboard 
+                            myId={myId}             
+                            myImage={myImage}       
+                            setMyImage={setMyImage} 
                             myName={myName} 
                             myCity={myCity} 
                             isVip={isVip} 
+                            isAdmin={isAdmin} 
                             setShowPaywall={setShowPaywall} 
                             openEditProfile={() => setShowEditProfile(true)}
-                            receivedGifts={receivedGifts} 
+                            receivedGifts={receivedGifts}
                           />
                         </View>
                       )}
@@ -902,7 +987,6 @@ export default function App() {
                   ))}
                 </View>
 
-                {/* 🚀 FIXED: myId passed into AllModals right here! */}
                 <AllModals 
                   showFilters={showFilters} 
                   setShowFilters={setShowFilters} 
@@ -929,12 +1013,19 @@ export default function App() {
                   handleAddFriend={handleAddFriend}
                   handleSendGift={handleSendGift} 
                   myId={myId} 
+                  myImage={myImage}
+                  isAdmin={isAdmin}
+                  isVip={isVip}
+                  setShowPaywall={setShowPaywall}
+                  totalFreeMessages={totalFreeMessages} 
+                  setTotalFreeMessages={setTotalFreeMessages}
                 />
 
                 <Subscription 
                   showPaywall={showPaywall} 
                   setShowPaywall={setShowPaywall} 
                   handlePayment={handlePayment} 
+                  isAdmin={isAdmin} 
                 />
               </SafeAreaView>
             );

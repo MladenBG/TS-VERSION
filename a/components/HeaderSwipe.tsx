@@ -3,59 +3,84 @@ import { View, TouchableOpacity, Image, Text, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 export const HeaderSwipe = ({ 
-  logoImg, isVip, setShowPaywall, tab, searchQuery, setSearchQuery, 
-  setShowFilters, setTab, setDiscoveryMode, discoveryMode, setCurrentPage, unreadCount, handleLogout 
+  logoImg, 
+  myImage, // 🚀 YOUR REAL PICTURE PROP
+  isVip, 
+  setShowPaywall, 
+  tab, 
+  searchQuery, 
+  setSearchQuery, 
+  setShowFilters, 
+  setTab, 
+  setDiscoveryMode, 
+  discoveryMode, 
+  setCurrentPage, 
+  unreadCount, 
+  handleLogout 
 }: any) => {
   return (
-    <View className="p-4 border-b border-gray-200 bg-white">
+    <View className="p-4 border-b border-gray-200 bg-white pt-12">
       <View className="flex-row justify-between items-center mb-3">
+        
+        {/* 🚀 LEFT SIDE: YOUR PROFILE PICTURE 🚀 */}
+        <TouchableOpacity 
+          onPress={() => setTab('settings')}
+          className="relative"
+          activeOpacity={0.7}
+        >
+          {myImage ? (
+            <Image 
+              source={{ uri: myImage }} 
+              className="w-12 h-12 rounded-full border-2 border-green-500 shadow-sm" 
+            />
+          ) : (
+            <View className="w-12 h-12 rounded-full bg-gray-200 border-2 border-gray-300 items-center justify-center shadow-sm">
+              <Feather name="user" size={20} color="#9CA3AF" />
+            </View>
+          )}
+          {isVip && (
+            <View className="absolute -bottom-1 -right-1 bg-yellow-400 rounded-full w-5 h-5 items-center justify-center border-2 border-white">
+              <Text className="text-[8px]">💎</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* CENTER: LOGO */}
         <TouchableOpacity onPress={() => {setTab('discover'); setDiscoveryMode('list');}}>
-          <Image source={logoImg} className="w-[140px] h-[60px]" resizeMode="contain" />
+          <Image source={logoImg} className="w-[120px] h-[40px]" resizeMode="contain" />
         </TouchableOpacity>
         
+        {/* RIGHT SIDE: ACTIONS */}
         <View className="flex-row items-center">
           
-          {/* MODERN UI LOGOUT BUTTON */}
+          {/* INBOX BUTTON */}
           <TouchableOpacity 
-            className="flex-row items-center px-3 py-2.5 bg-gray-50 rounded-full mr-2 border border-gray-200 shadow-sm"
-            onPress={handleLogout}
-            activeOpacity={0.7}
-          >
-            <Feather name="power" size={14} color="#6B7280" />
-            <Text className="text-gray-600 text-[10px] font-black uppercase tracking-wider ml-1.5">
-              Logout
-            </Text>
-          </TouchableOpacity>
-
-          {/* PROFESSIONAL INBOX BUTTON */}
-          <TouchableOpacity 
-            className="w-[40px] h-[40px] bg-gray-50 rounded-full justify-center items-center mr-3 relative border border-gray-200 shadow-sm"
+            className="w-10 h-10 bg-gray-50 rounded-full justify-center items-center mr-2 relative border border-gray-200 shadow-sm"
             onPress={() => setTab('inbox')}
             activeOpacity={0.7}
           >
             <Feather name="mail" size={18} color="#374151" />
             {unreadCount > 0 && (
-              <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-[20px] h-[20px] justify-center items-center border-2 border-white">
-                <Text className="text-white text-[10px] font-black">
+              <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 justify-center items-center border-2 border-white">
+                <Text className="text-white text-[8px] font-black">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </Text>
               </View>
             )}
           </TouchableOpacity>
 
-          {/* VIP / GO PRO BUTTON */}
+          {/* LOGOUT ICON */}
           <TouchableOpacity 
-            className={`py-2.5 px-4 rounded-full shadow-sm ${isVip ? 'bg-yellow-400' : 'bg-green-500'}`} 
-            onPress={() => setShowPaywall(true)}
-            activeOpacity={0.8}
+            className="w-10 h-10 bg-red-50 rounded-full justify-center items-center border border-red-100 shadow-sm"
+            onPress={handleLogout}
+            activeOpacity={0.7}
           >
-            <Text className="text-white text-[11px] font-black tracking-wide">
-              {isVip ? "💎 VIP" : "⚡ PRO"}
-            </Text>
+            <Feather name="power" size={16} color="#EF4444" />
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* DISCOVERY SEARCH AND MODES */}
       {tab === 'discover' && (
         <>
           <View className="flex-row items-center">
@@ -63,7 +88,7 @@ export const HeaderSwipe = ({
               <Feather name="search" size={18} color="#9CA3AF" />
               <TextInput 
                 className="flex-1 ml-2 text-black font-bold h-full" 
-                placeholder="Search Town, Name or Sexuality..." 
+                placeholder="Search Town, Name..." 
                 placeholderTextColor="#9CA3AF"
                 value={searchQuery}
                 onChangeText={(t) => { setSearchQuery(t); setCurrentPage(1); }}

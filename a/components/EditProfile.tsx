@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Alert, Switch, Modal, FlatList, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+
+// 🚀 IMPORT THE NEW COMPONENT
+import { DeleteAccountButton } from './DeleteAccountButton'; 
 
 // =========================================================================
 // 🚨 THE MASTER URL SWITCH 🚨
@@ -9,8 +12,8 @@ import * as ImageManipulator from 'expo-image-manipulator';
 // USE NGROK FOR BOTH EMULATOR AND PHONE AT THE SAME TIME:
 //const API_URL = "https://marshall-voltametric-clair.ngrok-free.dev"; 
 
-// COMMENT OUT THE LOCAL IP:
- const API_URL = "http://10.0.2.2:3000"; 
+// 🚀 FIXED: POINTING TO PORT 3001 TO MATCH BACKEND
+const API_URL = "http://10.0.2.2:3001"; 
 // =========================================================================
 
 // --- DATA LISTS FOR PICKERS ---
@@ -29,6 +32,9 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 const YEARS = Array.from({length: 70}, (_, i) => `${2006 - i}`);
 
 export const EditProfile = ({ 
+  myId,             // 🚀 REAL ID PASSED FROM APP.TSX
+  myImage,          // 🚀 REAL IMAGE FROM DB
+  setMyImage,       // 🚀 TO UPDATE GLOBAL STATE
   myName, setMyName, 
   myCity, setMyCity, 
   isPrivate, setIsPrivate, 
@@ -36,7 +42,7 @@ export const EditProfile = ({
   setShowPaywall 
 }: any) => {
   
-  const currentUserId = "my_test_id"; // 🚨 Same test ID we used in SafetyMenu.tsx
+  const currentUserId = myId; // 🚀 Uses Real ID instead of hardcoded string
 
   // --- LOCAL STATE FOR PROFILE FIELDS ---
   const [bio, setBio] = useState('');
@@ -54,9 +60,14 @@ export const EditProfile = ({
   const [month, setMonth] = useState('January');
   const [year, setYear] = useState('2000');
 
-  // --- IMAGE UPLOAD STATE ---
-  const [avatarUrl, setAvatarUrl] = useState('https://picsum.photos/200');
+  // 🚀 IMAGE STATE (Defaults to Real Image, NOT picsum)
+  const [avatarUrl, setAvatarUrl] = useState(myImage || 'https://via.placeholder.com/150');
   const [isUploading, setIsUploading] = useState(false);
+
+  // Sync if props update
+  useEffect(() => {
+    if (myImage) setAvatarUrl(myImage);
+  }, [myImage]);
 
   // --- PICKER MODAL STATE ---
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -92,6 +103,7 @@ export const EditProfile = ({
     setPickerVisible(false);
   };
 
+  // 🚀 PERFECTLY SYNCED WITH DASHBOARD UPLOAD LOGIC AND DB SAVE 🚀
   const handleImageUpload = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
@@ -110,19 +122,29 @@ export const EditProfile = ({
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setIsUploading(true);
       try {
+        console.log("1. Manipulating image: CONVERTING TO WEBP...");
+        // 🚀 FORCE WEBP FORMAT 🚀
         const manipResult = await ImageManipulator.manipulateAsync(
           result.assets[0].uri,
           [{ resize: { width: 500 } }],
           { compress: 0.7, format: ImageManipulator.SaveFormat.WEBP }
         );
 
-        // 🚨 UPDATED TO USE API_URL
+        console.log("2. Requesting pre-signed URL from backend...");
         const response = await fetch(`${API_URL}/api/get-upload-url`);
-        const { uploadUrl, publicUrl } = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(`Backend failed with status: ${response.status}`);
+        }
 
+        const { uploadUrl, publicUrl } = await response.json();
+        if (!uploadUrl) throw new Error("Backend did not return an uploadUrl");
+
+        console.log("3. Converting local WEBP file to Blob...");
         const imageResponse = await fetch(manipResult.uri);
         const blob = await imageResponse.blob();
         
+        console.log("4. Sending to Cloudflare as image/webp...");
         const uploadRes = await fetch(uploadUrl, {
           method: 'PUT',
           body: blob,
@@ -130,14 +152,28 @@ export const EditProfile = ({
         });
 
         if (uploadRes.ok) {
+          console.log("5. UPLOAD SUCCESSFUL!");
+          
+          // 🚀 1. Update the Local App View Immediately
           setAvatarUrl(publicUrl);
+          if (setMyImage) setMyImage(publicUrl); // Sync to App.tsx
+
+          // 🚀 2. SAVE IT PERMANENTLY IN POSTGRESQL DATABASE
+          await fetch(`${API_URL}/api/users/update-image`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: currentUserId, imageUrl: publicUrl })
+          });
+
           Alert.alert("Looking Good!", "Profile picture successfully updated.");
         } else {
-          throw new Error("Cloudflare rejected the upload");
+          const errorText = await uploadRes.text();
+          console.error("Cloudflare Error:", errorText);
+          Alert.alert("Upload Rejected", "Cloudflare blocked the file. Check terminal.");
         }
-      } catch (error) {
-        console.error("Profile Pic Upload Error:", error);
-        Alert.alert("Upload Failed", "Could not update profile picture. Make sure your server is running!");
+      } catch (error: any) {
+        console.error("Upload process crashed:", error.message || error);
+        Alert.alert("Upload Failed", error.message || "Could not update profile picture. Make sure your server is running!");
       } finally {
         setIsUploading(false);
       }
@@ -148,7 +184,6 @@ export const EditProfile = ({
   const openBlockedUsers = async () => {
     setShowBlockedModal(true);
     try {
-      // 🚨 UPDATED TO USE API_URL
       const res = await fetch(`${API_URL}/api/blocks/${currentUserId}`);
       if (res.ok) {
         const data = await res.json();
@@ -162,7 +197,6 @@ export const EditProfile = ({
   // 🚀 UNBLOCK A USER
   const handleUnblock = async (blockedId: string) => {
     try {
-      // 🚨 UPDATED TO USE API_URL
       const res = await fetch(`${API_URL}/api/unblock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -181,18 +215,24 @@ export const EditProfile = ({
     <View className="flex-1">
       <ScrollView className="p-5">
         
-        {/* PROFILE PICTURE */}
+        {/* 🚀 PERFECTED PROFILE PICTURE LOGIC 🚀 */}
         <View className="items-center mb-7">
           <TouchableOpacity onPress={handleImageUpload} className="items-center" disabled={isUploading}>
             {isUploading ? (
-              <View className="w-[120px] h-[120px] rounded-full mb-2.5 bg-gray-200 items-center justify-center">
+              <View className="w-[120px] h-[120px] rounded-full mb-2.5 bg-gray-200 items-center justify-center border-2 border-[#EEE]">
                 <ActivityIndicator size="large" color="#4CAF50" />
               </View>
             ) : (
-              <Image source={{uri: avatarUrl}} className="w-[120px] h-[120px] rounded-full mb-2.5 border-2 border-[#EEE]" />
+              <View className="relative">
+                <Image source={{uri: avatarUrl}} className="w-[120px] h-[120px] rounded-full mb-2.5 border-2 border-[#EEE]" />
+                <View className="absolute bottom-2 right-0 bg-[#4CAF50] w-10 h-10 rounded-full items-center justify-center border-2 border-white shadow-md elevation-3">
+                  <Text className="text-white text-[16px]">📷</Text>
+                </View>
+              </View>
             )}
-            <Text className="text-[#4CAF50] font-bold mt-2.5 text-[16px]">
-              {isUploading ? "Uploading to Cloud..." : "Change Picture"}
+            
+            <Text className="text-[#4CAF50] font-bold mt-2 text-[16px]">
+              {isUploading ? "Uploading to Cloud & DB..." : "Change Picture"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -257,14 +297,21 @@ export const EditProfile = ({
           <Text className="text-white font-bold">Save Profile Changes</Text>
         </TouchableOpacity>
 
-        {/* 🚀 THE NEW MANAGE BLOCKED USERS BUTTON 🚀 */}
         <TouchableOpacity className="bg-red-50 p-[18px] rounded-[150px] items-center mx-[15px] mb-[15px] border border-red-200" onPress={openBlockedUsers}>
           <Text className="text-red-600 font-bold">🚫 Manage Blocked Users</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity className="bg-black p-[18px] rounded-[150px] items-center m-[15px] mb-[50px]" onPress={() => setShowPaywall(true)}>
+        <TouchableOpacity className="bg-black p-[18px] rounded-[150px] items-center mx-[15px] mb-[15px]" onPress={() => setShowPaywall(true)}>
           <Text className="text-white font-bold">Manage VIP Subscription</Text>
         </TouchableOpacity>
+
+        <DeleteAccountButton 
+          userId={currentUserId} 
+          onSuccess={() => {
+            console.log("User deleted themselves, redirecting to login...");
+          }} 
+        />
+
       </ScrollView>
 
       {/* REUSABLE PICKER MODAL */}
