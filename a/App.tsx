@@ -12,17 +12,16 @@ import {
   Animated, 
   PanResponder,
   Vibration,
-  Platform
+  Platform,
+  Modal
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createNavigationContainerRef } from '@react-navigation/native';
 import io from 'socket.io-client';
-// 🚀 FIXED: CHANGED LogLevel TO LOG_LEVEL FOR NEWER VERSIONS
 import Purchases, { LOG_LEVEL } from 'react-native-purchases'; 
-// 🚀 NEW: IMPORT ASYNC STORAGE FOR PERSISTENCE 🚀
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// IMPORTS
 import { 
   ALL_PROFILES, 
   width, 
@@ -33,7 +32,6 @@ import {
 } from './constants/profilesData';
 import { UserCard } from './components/UserCard';
 import { AllModals } from './components/Modals';
-
 import { Lobby } from './components/Lobby';
 import { HeaderSwipe } from './components/HeaderSwipe';
 import { SwipeButton } from './components/SwipeButton';
@@ -44,7 +42,6 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { CloudflareVideoCall } from './components/CloudflareVideoCall'; 
 import { Inbox } from './components/Inbox';
 import { InvisibleModeToggle } from './components/InvisibleModeToggle';
-
 import { HomeScreen } from './screens/HomeScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { SignUpScreen } from './screens/SignUpScreen';
@@ -66,53 +63,64 @@ const Stack = createStackNavigator();
 export const navigationRef = createNavigationContainerRef();
 
 export default function App() {
+  // --- Navigation & Core State ---
   const [tab, setTab] = useState<'discover' | 'lobby' | 'favorites' | 'admin' | 'settings' | 'inbox'>('discover');
   const [favTab, setFavTab] = useState<'my_likes' | 'liked_me' | 'viewed_me'>('my_likes');
-
   const [discoveryMode, setDiscoveryMode] = useState<'list' | 'swipe' | 'radar'>('list');
   const [showPaywall, setShowPaywall] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   
+  // --- Auth & Access State ---
   const [isAdmin, setIsAdmin] = useState(false); 
   const [isVip, setIsVip] = useState(false);
-
-  // 🚀 SHARED MESSAGE LIMIT STATE 🚀
+  
+  // 🚀 DB SYNCED MESSAGE STATE (No more AsyncStorage caching hacks!) 🚀
   const [totalFreeMessages, setTotalFreeMessages] = useState(0);
-  const [lastResetDate, setLastResetDate] = useState(Date.now());
+
+  // --- Profile & Data State ---
   const [myImage, setMyImage] = useState("");  
-  const [myGalleryImages, setMyGalleryImages] = useState<string[]>([]); // 🚀 PERSISTENT GALLERY STATE
+  const [myGalleryImages, setMyGalleryImages] = useState<string[]>([]); 
   const [profiles, setProfiles] = useState<any[]>([]);
   const [likedMeProfiles, setLikedMeProfiles] = useState<any[]>([]);
   const [viewedMeProfiles, setViewedMeProfiles] = useState<any[]>([]);
-  
   const [receivedGifts, setReceivedGifts] = useState<any[]>([]);
   
+  // --- Filters & Search State ---
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGender, setFilterGender] = useState('All');
   const [filterSexuality, setFilterSexuality] = useState('All');
-  
   const [adminSearch, setAdminSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
+  // --- Interaction State ---
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [chatUser, setChatUser] = useState<any>(null);
   const [messages, setMessages] = useState<Record<string, any[]>>({});
   const [chatInput, setChatInput] = useState('');
-
   const [unreadCount, setUnreadCount] = useState(0);
   const currentTab = useRef(tab);
 
+  // --- Lobby & My User Info ---
   const [lobbyMessages, setLobbyMessages] = useState<any[]>([]);
   const [lobbyInput, setLobbyInput] = useState('');
   const [myId, setMyId] = useState("test_user_id");
   const [myName, setMyName] = useState('');
   const [myCity, setMyCity] = useState('');
   
+  // --- Settings State ---
   const [isPrivate, setIsPrivate] = useState(false); 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
-  // 🚀 PROFILE LIST SYNC ENGINE 🚀
+  // 🚀 BLOCK LIST STATE 🚀
+  const [showBlockList, setShowBlockList] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
+
+  // =========================================================================
+  // EFFECTS & DATA FETCHING
+  // =========================================================================
+
+  // PROFILE LIST SYNC ENGINE
   useEffect(() => {
     if (myId && myImage) {
       setProfiles(prevProfiles => 
@@ -121,49 +129,7 @@ export default function App() {
     }
   }, [myImage, myId]);
 
-  // =========================================================================
-  // 🚀 LOAD MESSAGE LIMITS FROM PHONE STORAGE ON APP START 🚀
-  // =========================================================================
-  useEffect(() => {
-    const loadMessageLimits = async () => {
-      try {
-        const storedCount = await AsyncStorage.getItem('totalFreeMessages');
-        const storedDate = await AsyncStorage.getItem('lastResetDate');
-
-        if (storedDate) {
-          const parsedDate = parseInt(storedDate, 10);
-          const fiveDaysInMs = 5 * 24 * 60 * 60 * 1000;
-          
-          if (Date.now() - parsedDate > fiveDaysInMs) {
-            setTotalFreeMessages(0);
-            setLastResetDate(Date.now());
-            await AsyncStorage.setItem('totalFreeMessages', '0');
-            await AsyncStorage.setItem('lastResetDate', Date.now().toString());
-          } else {
-            setTotalFreeMessages(storedCount ? parseInt(storedCount, 10) : 0);
-            setLastResetDate(parsedDate);
-          }
-        } else {
-          await AsyncStorage.setItem('lastResetDate', Date.now().toString());
-        }
-      } catch (e) {
-        console.error("Failed to load storage", e);
-      }
-    };
-    loadMessageLimits();
-  }, []);
-
-  // 🚀 HELPER TO SAVE NEW COUNT TO HARD DRIVE
-  const incrementMessageCount = async () => {
-    if (isAdmin || isVip) return; 
-    const newCount = totalFreeMessages + 1;
-    setTotalFreeMessages(newCount);
-    await AsyncStorage.setItem('totalFreeMessages', newCount.toString());
-  };
-
-  // =========================================================================
-  // 🚀 REVENUECAT INITIALIZATION FOR GOOGLE PLAY 🚀
-  // =========================================================================
+  // REVENUECAT INITIALIZATION FOR GOOGLE PLAY
   useEffect(() => {
     const setupRevenueCat = async () => {
       try {
@@ -178,50 +144,70 @@ export default function App() {
     setupRevenueCat();
   }, []);
 
-  // =========================================================================
-  // 🚀 FIX: LOAD EVERYTHING SIMULTANEOUSLY SO LIKES AND MESSAGES DONT CRASH 🚀
-  // =========================================================================
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const requests = [
-          fetch(`${API_URL}/api/users`).then(r => r.json()).catch(() => []),
-          fetch(`${API_URL}/api/likes/who-liked-me`).then(r => r.json()).catch(() => []),
-          fetch(`${API_URL}/api/views`).then(r => r.json()).catch(() => []),
-          fetch(`${API_URL}/api/gifts`).then(r => r.json()).catch(() => []),
-          fetch(`${API_URL}/api/lobby`).then(r => r.json()).catch(() => [])
-        ];
+  const fetchInitialData = async () => {
+    try {
+      const requests = [
+        fetch(`${API_URL}/api/users`).then(r => r.json()).catch(() => []),
+        fetch(`${API_URL}/api/likes/who-liked-me`).then(r => r.json()).catch(() => []),
+        fetch(`${API_URL}/api/views`).then(r => r.json()).catch(() => []),
+        fetch(`${API_URL}/api/gifts`).then(r => r.json()).catch(() => []),
+        fetch(`${API_URL}/api/lobby`).then(r => r.json()).catch(() => [])
+      ];
 
-        if (myId) {
-          requests.push(fetch(`${API_URL}/api/messages?my_id=${myId}`).then(r => r.json()).catch(() => ({})));
-          // 🚀 THIS FIXES LIKES: Actually asks the server "who did I like?"
-          requests.push(fetch(`${API_URL}/api/likes/my-likes?my_id=${myId}`).then(r => r.json()).catch(() => []));
+      if (myId) {
+        requests.push(
+          fetch(`${API_URL}/api/messages?my_id=${myId}`).then(r => r.json()).catch(() => ({}))
+        );
+        requests.push(
+          fetch(`${API_URL}/api/likes/my-likes?my_id=${myId}`).then(r => r.json()).catch(() => [])
+        );
+      }
+
+      const results = await Promise.all(requests);
+      
+      const data = results[0];
+      const likedMe = results[1];
+      const views = results[2];
+      const gifts = results[3];
+      const lobby = results[4];
+      
+      const msgHistory = myId ? results[5] : null;
+      const myLikesData = (myId && Array.isArray(results[6])) ? results[6] : [];
+
+      if (data && Array.isArray(data)) {
+        
+        // 🚀 GRAB ACTUAL MESSAGE COUNT FROM DATABASE (HACKER-PROOF)
+        const me = data.find((u: any) => u.id === myId);
+        if (me && me.message_count !== undefined) {
+          setTotalFreeMessages(me.message_count);
         }
 
-        const results = await Promise.all(requests);
-        
-        const data = results[0];
-        const likedMe = results[1];
-        const views = results[2];
-        const gifts = results[3];
-        const lobby = results[4];
-        
-        const msgHistory = myId ? results[5] : null;
-        // 🚀 BULLETPROOF ARRAY CHECK FOR LIKES
-        const myLikesData = (myId && Array.isArray(results[6])) ? results[6] : [];
+        const formattedProfiles = data.map((u: any) => {
+          let calcAge = u.age || 25;
+          if (u.dob_year) {
+            calcAge = new Date().getFullYear() - parseInt(u.dob_year);
+          }
 
-        if (data && Array.isArray(data)) {
-          const formattedProfiles = data.map((u: any) => ({
+          return {
             id: u.id,
             name: u.name,
-            age: u.age || 25,
+            age: calcAge, 
             town: u.city || 'Unknown',
+            country: u.country || 'Unknown',
             image: u.image || 'https://via.placeholder.com/150',
             gender: u.gender || 'Unknown',
             sexuality: u.sexuality || 'Straight',
+            hereFor: u.here_for || 'Not specified',
+            bodyType: u.body_type || 'Unknown',
+            music: u.music || 'Unknown',
+            education: u.education || 'Unknown',
+            hairColor: u.hair_color || 'Unknown',
+            eyeColor: u.eye_color || 'Unknown',
+            weight: u.weight || 'Unknown',
+            height: u.height || 'Unknown',
             bio: u.bio || '',
             is_vip: u.is_vip,
-            isFavorite: myLikesData.includes(u.id), // 🚀 PAINTS THE HEARTS ON SCREEN
+            isFavorite: myLikesData.includes(u.id), 
             distance: Math.floor(Math.random() * 10) + 1,
             isBanned: false,
             friends: u.friends || [],
@@ -229,36 +215,36 @@ export default function App() {
             gallery: u.gallery || [], 
             joinedAt: u.created_at, 
             lastIp: u.last_ip 
-          }));
-          setProfiles(formattedProfiles);
-        }
-
-        if (Array.isArray(likedMe)) setLikedMeProfiles(likedMe);
-        if (Array.isArray(views)) setViewedMeProfiles(views);
-        if (Array.isArray(gifts)) setReceivedGifts(gifts);
-        if (Array.isArray(lobby)) setLobbyMessages(lobby);
-
-        // 🚀 PREVENTS RED SCREEN DMs CRASH 
-        if (msgHistory && !msgHistory.error) {
-          setMessages(msgHistory);
-        }
-
-      } catch (error) {
-        console.error("Failed to load initial data:", error);
+          };
+        });
+        setProfiles(formattedProfiles);
       }
-    };
 
+      if (Array.isArray(likedMe)) setLikedMeProfiles(likedMe);
+      if (Array.isArray(views)) setViewedMeProfiles(views);
+      if (Array.isArray(gifts)) setReceivedGifts(gifts);
+      if (Array.isArray(lobby)) setLobbyMessages(lobby);
+
+      if (msgHistory && !msgHistory.error) {
+        setMessages(msgHistory);
+      }
+
+    } catch (error) {
+      console.error("Failed to load initial data:", error);
+    }
+  };
+
+  useEffect(() => {
     fetchInitialData();
   }, [myId]);
 
-  // 🚀 CHAT HISTORY LOADER (BULLETPROOF ARRAY ENFORCEMENT)
+  // CHAT HISTORY LOADER
   useEffect(() => {
     if (chatUser && myId) {
       const fetchChatHistory = async () => {
         try {
           const res = await fetch(`${API_URL}/api/messages?my_id=${myId}&other_id=${chatUser.id}`);
           const history = await res.json();
-          // 🚀 ENFORCE ARRAY: Fixes "Iterator not callable" crash
           setMessages(prev => ({ 
             ...prev, 
             [chatUser.id]: Array.isArray(history) ? history : [] 
@@ -279,6 +265,10 @@ export default function App() {
     }
   }, [tab]);
 
+  // =========================================================================
+  // APP FUNCTIONS & LOGIC
+  // =========================================================================
+
   const playNotificationSound = async () => { Vibration.vibrate(); };
 
   const [swipeIndex, setSwipeIndex] = useState(0);
@@ -298,6 +288,38 @@ export default function App() {
     }
   };
 
+  // 🚀 FETCH BLOCKED USERS LOGIC
+  const fetchBlockedUsers = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/blocks/${myId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBlockedUsers(data);
+      }
+    } catch (error) {
+      console.error("Failed to load blocked users:", error);
+    }
+  };
+
+  // 🚀 UNBLOCK USER LOGIC
+  const handleUnblockUser = async (blockedId: string) => {
+    try {
+      await fetch(`${API_URL}/api/unblock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          blockerId: myId, 
+          blockedId: blockedId 
+        })
+      });
+      setBlockedUsers(prev => prev.filter(u => u.id !== blockedId));
+      Alert.alert("Unblocked", "This user has been unblocked.");
+    } catch (error) {
+      console.error("Error unblocking:", error);
+    }
+  };
+
+  // RADAR ANIMATION
   const radarAnim = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
@@ -312,11 +334,10 @@ export default function App() {
     }
   }, [discoveryMode]);
 
-  // 🚀 SOCKET INITIALIZATION & UUID REGISTRATION 🚀
+  // SOCKET INITIALIZATION
   useEffect(() => {
     if (myId && myName) {
       socket.emit("register_user", { id: myId, name: myName }); 
-      console.log("Registered on Socket with ID:", myId);
     }
 
     const handleReceiveLobby = (msg: any) => {
@@ -366,6 +387,7 @@ export default function App() {
     };
   }, [myId, myName]);
 
+  // FILTER LOGIC
   const filteredProfiles = useMemo(() => {
     return profiles.filter(p => {
       const s = searchQuery.toLowerCase();
@@ -395,6 +417,7 @@ export default function App() {
     currentPage * USERS_PER_PAGE
   );
 
+  // SWIPE LOGIC
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onPanResponderMove: (event, gesture) => {
@@ -406,14 +429,21 @@ export default function App() {
       } else if (gesture.dx < -120) {
         completeSwipe('left');
       } else {
-        Animated.spring(position, { toValue: { x: 0, y: 0 }, friction: 4, useNativeDriver: true }).start();
+        Animated.spring(position, { 
+          toValue: { x: 0, y: 0 }, 
+          friction: 4, 
+          useNativeDriver: true 
+        }).start();
       }
     }
   });
 
   const completeSwipe = (direction: 'left' | 'right') => {
     Animated.timing(position, {
-      toValue: { x: direction === 'right' ? width * 1.5 : -width * 1.5, y: 0 },
+      toValue: { 
+        x: direction === 'right' ? width * 1.5 : -width * 1.5, 
+        y: 0 
+      },
       duration: 300,
       useNativeDriver: true
     }).start(() => {
@@ -425,6 +455,7 @@ export default function App() {
     });
   };
 
+  // PROFILE ACTIONS
   const handleProfileView = async (user: any) => {
     setSelectedUser(user);
     try {
@@ -438,7 +469,6 @@ export default function App() {
     }
   };
 
-  // 🚀 LIKE SENDING ENGINE
   const toggleLike = async (liked_user_id: string) => {
     setProfiles(prev => prev.map(p => 
       p.id === liked_user_id ? { ...p, isFavorite: !p.isFavorite } : p
@@ -448,21 +478,19 @@ export default function App() {
       await fetch(`${API_URL}/api/likes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: myId, liked_user_id: liked_user_id })
+        body: JSON.stringify({ 
+          user_id: myId, 
+          liked_user_id: liked_user_id 
+        })
       });
     } catch (error) {
       console.error("Database connection failed for like:", error);
     }
   };
 
+  // DB MESSAGE CHECK
   const checkMessageLimits = () => {
     if (isAdmin || isVip) return true;
-
-    const fiveDaysInMs = 5 * 24 * 60 * 60 * 1000;
-    if (Date.now() - lastResetDate > fiveDaysInMs) {
-      setTotalFreeMessages(0); 
-      setLastResetDate(Date.now());
-    }
 
     if (totalFreeMessages >= 2) {
       Alert.alert(
@@ -475,46 +503,28 @@ export default function App() {
       );
       return false; 
     }
-
     return true;
   };
 
-  // 🚀 SEND MESSAGE SYNCED WITH TS BACKEND (FIXED WHITE SCREEN)
+  // 🚀 SEND PRIVATE MESSAGE (DB SYNCED)
   const handleSendMessage = async () => {
     if (!chatInput.trim() || !chatUser || !myId) return;
+    if (!checkMessageLimits()) return;
     
     const textToSend = chatInput;
     setChatInput('');
 
-    // 🚀 Unique string keys for React list
     const tempId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
     const newMsg = { 
       _id: tempId, 
-      id: tempId, // Double check key props
+      id: tempId, 
       text: textToSend, 
       sender: 'me',
-      createdAt: new Date().toISOString() // 🚀 STRING timestamp prevents fatal White Screen crash
+      createdAt: new Date().toISOString() 
     };
 
-    // 🚀 Safe array spread prevents "Iterator not callable"
-    setMessages(prev => {
-      const existingMessages = Array.isArray(prev[chatUser.id]) ? prev[chatUser.id] : [];
-      return {
-        ...prev,
-        [chatUser.id]: [...existingMessages, newMsg]
-      };
-    });
-
-    // Send via socket
-    socket.emit("private_message", { 
-      receiverId: chatUser.id, 
-      messageData: newMsg 
-    });
-
-    // Database save
     try {
-      await fetch(`${API_URL}/api/messages`, {
+      const res = await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -523,14 +533,39 @@ export default function App() {
           content: textToSend 
         })
       });
+
+      // 🚀 CATCH 403 DB LOCK
+      if (res.status === 403) {
+        Alert.alert("Limit Reached", "You have used your 2 free messages. Unlock VIP to continue!");
+        setShowPaywall(true);
+        return;
+      }
+
+      setMessages(prev => {
+        const existingMessages = Array.isArray(prev[chatUser.id]) ? prev[chatUser.id] : [];
+        return {
+          ...prev,
+          [chatUser.id]: [...existingMessages, newMsg]
+        };
+      });
+
+      socket.emit("private_message", { 
+        receiverId: chatUser.id, 
+        messageData: newMsg 
+      });
+
+      if (!isAdmin && !isVip) {
+        setTotalFreeMessages(prev => prev + 1);
+      }
+
     } catch (e) {
       console.error("Failed to save private message:", e);
     }
   };
 
+  // 🚀 SEND LOBBY MESSAGE (DB SYNCED)
   const sendLobbyMessage = async () => {
     if (!lobbyInput.trim() || !myName || !myId) return; 
-    
     if (!checkMessageLimits()) return;
     
     const msgText = lobbyInput;
@@ -540,9 +575,19 @@ export default function App() {
       const res = await fetch(`${API_URL}/api/lobby`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sender_id: myId, content: msgText })
+        body: JSON.stringify({ 
+          sender_id: myId, 
+          content: msgText 
+        })
       });
       
+      // 🚀 CATCH 403 DB LOCK
+      if (res.status === 403) {
+        Alert.alert("Limit Reached", "You have used your 2 free messages. Unlock VIP to continue!");
+        setShowPaywall(true);
+        return;
+      }
+
       const dbData = await res.json();
       
       const finalMsg = { 
@@ -555,14 +600,16 @@ export default function App() {
       socket.emit("send_lobby_msg", finalMsg);
       setLobbyMessages(prev => [finalMsg, ...prev]);
 
-      incrementMessageCount(); 
+      if (!isAdmin && !isVip) {
+        setTotalFreeMessages(prev => prev + 1);
+      }
 
     } catch (error) {
       console.error("Failed to save lobby message:", error);
     }
   };
   
-  // 🚀 START VIDEO CALL WITH UUID ROUTING
+  // 🚀 ADMIN BYPASS FOR VIDEO CALL
   const handleStartVideoCall = (user: any) => {
     if (!isAdmin && !isVip) {
       Alert.alert("Premium Feature", "Video Calling is locked. Subscribe to use the camera!");
@@ -598,7 +645,10 @@ export default function App() {
       await fetch(`${API_URL}/api/friends`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: myId, friend_id: user.id })
+        body: JSON.stringify({ 
+          user_id: myId, 
+          friend_id: user.id 
+        })
       });
     } catch (error) {
       console.error("Failed to add friend:", error);
@@ -618,7 +668,11 @@ export default function App() {
       await fetch(`${API_URL}/api/gifts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sender_id: myId, receiver_id: user.id, gift_name: giftName })
+        body: JSON.stringify({ 
+          sender_id: myId, 
+          receiver_id: user.id, 
+          gift_name: giftName 
+        })
       });
     } catch (error) {
       console.error("Failed to send gift:", error);
@@ -639,259 +693,92 @@ export default function App() {
     ]);
   };
 
+  // =========================================================================
+  // RENDER MAIN APPLICATION UI
+  // =========================================================================
+
   return (
     <SafeAreaProvider> 
-    <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Home">
-        
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="SignUp" component={SignUpScreen} />
+      <NavigationContainer ref={navigationRef}>
+        <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Home">
+          
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="SignUp" component={SignUpScreen} />
 
-        <Stack.Screen name="Main">
-          {({ navigation, route }: any) => {
+          <Stack.Screen name="Main">
+            {({ navigation, route }: any) => {
 
-            useEffect(() => {
-              if (route.params?.user) {
-                setMyId(route.params.user.id);
-                setMyName(route.params.user.name || 'User');
-                setIsAdmin(route.params.user.role === 'admin'); 
-                setIsVip(route.params.user.is_vip || false);
-                if (route.params.user.city) setMyCity(route.params.user.city);
-                
-                // 🚀 DB SYNC: LOAD PERSISTENT PHOTOS ON LOGIN 🚀
-                if (route.params.user.image) setMyImage(route.params.user.image);
-                if (route.params.user.gallery) setMyGalleryImages(route.params.user.gallery); 
-              }
-            }, [route.params]);
-
-            const handleLogout = () => {
-              Alert.alert("Sign Out", "Are you sure you want to log out?", [
-                { text: "Cancel", style: "cancel" },
-                { 
-                  text: "Logout", 
-                  style: "destructive",
-                  onPress: () => {
-                    setMyId("");
-                    setMyName("");
-                    setMyImage("");
-                    setMyGalleryImages([]);
-                    setIsVip(false);
-                    setIsAdmin(false);
-                    navigation.replace('Home');
+              useEffect(() => {
+                if (route.params?.user) {
+                  setMyId(route.params.user.id);
+                  setMyName(route.params.user.name || 'User');
+                  setIsAdmin(route.params.user.role === 'admin'); 
+                  setIsVip(route.params.user.is_vip || false);
+                  
+                  // LOAD MESSAGE COUNT DIRECTLY FROM DB LOGIN
+                  if (route.params.user.message_count !== undefined) {
+                    setTotalFreeMessages(route.params.user.message_count);
                   }
+
+                  if (route.params.user.city) setMyCity(route.params.user.city);
+                  if (route.params.user.image) setMyImage(route.params.user.image);
+                  if (route.params.user.gallery) setMyGalleryImages(route.params.user.gallery); 
                 }
-              ]);
-            };
+              }, [route.params]);
 
-            return (
-              <SafeAreaView className="flex-1 bg-white">
-                <StatusBar barStyle="dark-content" />
-                
-                {tab !== 'admin' && tab !== 'settings' && tab !== 'inbox' && (
-                  <HeaderSwipe 
-                    logoImg={logoImg} 
-                    myImage={myImage} 
-                    isVip={isVip} 
-                    setShowPaywall={setShowPaywall} 
-                    tab={tab} 
-                    searchQuery={searchQuery} 
-                    setSearchQuery={setSearchQuery} 
-                    setCurrentPage={setCurrentPage}
-                    setShowFilters={setShowFilters} 
-                    setTab={setTab} 
-                    setDiscoveryMode={setDiscoveryMode} 
-                    discoveryMode={discoveryMode} 
-                    unreadCount={unreadCount}
-                    handleLogout={handleLogout} 
-                  />
-                )}
+              const handleLogout = () => {
+                Alert.alert("Sign Out", "Are you sure you want to log out?", [
+                  { text: "Cancel", style: "cancel" },
+                  { 
+                    text: "Logout", 
+                    style: "destructive",
+                    onPress: () => {
+                      setMyId("");
+                      setMyName("");
+                      setMyImage("");
+                      setMyGalleryImages([]);
+                      setIsVip(false);
+                      setIsAdmin(false);
+                      setTotalFreeMessages(0);
+                      navigation.replace('Home');
+                    }
+                  }
+                ]);
+              };
 
-                <View className="flex-1">
-                  {tab === 'discover' && (
-                    <View className="flex-1 relative">
-                      {discoveryMode === 'list' && (
-                        <>
-                          <FlatList 
-                            data={currentUsers} 
-                            renderItem={({item}) => (
-                              <UserCard 
-                                item={item} 
-                                onSelect={handleProfileView} 
-                                onToggleLike={toggleLike} 
-                              />
-                            )} 
-                            numColumns={2} 
-                            keyExtractor={item => item.id}
-                            contentContainerStyle={{ padding: 4, paddingBottom: 80 }}
-                            ListEmptyComponent={
-                              <Text className="text-center mt-12 text-gray-400">
-                                No results found in your area.
-                              </Text>
-                            }
-                          />
-                          <View className="h-[70px] flex-row justify-between items-center px-5 border-t border-gray-200">
-                            <TouchableOpacity 
-                              onPress={() => setCurrentPage(prev => Math.max(prev - 1, 1))} 
-                              className="bg-green-500 p-2.5 rounded-lg min-w-[80px] items-center"
-                            >
-                              <Text className="text-white font-bold">Prev</Text>
-                            </TouchableOpacity>
-                            
-                            <Text className="text-gray-800 font-bold text-base">
-                              {currentPage} / {totalPages || 1}
-                            </Text>
-                            
-                            <TouchableOpacity 
-                              onPress={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} 
-                              className="bg-green-500 p-2.5 rounded-lg min-w-[80px] items-center"
-                            >
-                              <Text className="text-white font-bold">Next</Text>
-                            </TouchableOpacity>
-                          </View>
-
-                          <TouchableOpacity 
-                            onPress={() => { setTab('favorites'); setFavTab('viewed_me'); }}
-                            className="absolute bottom-24 right-6 bg-white/70 border border-white/60 rounded-full px-5 py-3 flex-row items-center shadow-lg backdrop-blur-md"
-                            style={{ elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8 }}
-                          >
-                            <Text className="text-[20px] mr-2">👁️</Text>
-                            <Text className="font-black text-gray-800 tracking-tight">
-                              {viewedMeProfiles.length} Views
-                            </Text>
-                            {viewedMeProfiles.length > 0 && (
-                              <View className="absolute top-0 right-0 bg-red-500 w-3 h-3 rounded-full border border-white" />
-                            )}
-                          </TouchableOpacity>
-                        </>
-                      )}
-
-                      {discoveryMode === 'swipe' && isVip && (
-                        <View className="flex-1 items-center justify-center">
-                          {filteredProfiles.slice(swipeIndex, swipeIndex + 3).reverse().map((p, i) => {
-                            const isTop = i === 2 || (filteredProfiles.length - swipeIndex < 3 && i === filteredProfiles.length - swipeIndex - 1);
-                            return (
-                              <Animated.View 
-                                key={p.id} 
-                                className="absolute w-[90%] h-[60%] rounded-[20px] overflow-hidden bg-white shadow-lg elevation-5"
-                                style={isTop ? { transform: position.getTranslateTransform() } : {}}
-                                {...(isTop ? panResponder.panHandlers : {})}
-                              >
-                                <Image source={{uri: p.image}} className="w-full h-[80%]" />
-                                <View className="p-4">
-                                  <Text className="text-[22px] font-bold">{p.name}, {p.age}</Text>
-                                  <Text className="text-[14px] text-gray-500">{p.town} • {p.sexuality}</Text>
-                                </View>
-                              </Animated.View>
-                            );
-                          })}
-                          <SwipeButton completeSwipe={completeSwipe} />
-                        </View>
-                      )}
-
-                      {discoveryMode === 'radar' && isVip && (
-                        <View className="flex-1 justify-center items-center bg-gray-50">
-                          <Animated.View 
-                            className="absolute w-[100px] h-[100px] rounded-full border-2 border-green-500"
-                            style={{
-                              transform: [{ scale: radarAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 4] }) }],
-                              opacity: radarAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })
-                            }} 
-                          />
-                          <View className="w-[15px] h-[15px] rounded-full bg-green-500 elevation-5" />
-                          {filteredProfiles.slice(0, 6).map((p, i) => (
-                            <TouchableOpacity 
-                              key={p.id} 
-                              onPress={() => setSelectedUser(p)}
-                              className="absolute items-center"
-                              style={{ top: 150 + Math.sin(i) * 100, left: (width/2 - 25) + Math.cos(i) * 100 }}
-                            >
-                              <Image source={{uri: p.image}} className="w-[50px] h-[50px] rounded-full border-2 border-white" />
-                              <Text className="text-[10px] text-gray-500 font-bold">{p.distance}km</Text>
-                            </TouchableOpacity>
-                          ))}
-                          <Text className="absolute bottom-12 text-gray-400 font-bold">
-                            Scanning for connections in {myCity}...
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-
-                  {tab === 'inbox' && (
-                    <Inbox 
-                      messages={messages}
-                      setMessages={setMessages}
-                      profiles={profiles}
-                      setChatUser={setChatUser}
-                      setTab={setTab}
+              return (
+                <SafeAreaView className="flex-1 bg-white">
+                  <StatusBar barStyle="dark-content" />
+                  
+                  {tab !== 'admin' && tab !== 'settings' && tab !== 'inbox' && (
+                    <HeaderSwipe 
+                      logoImg={logoImg} 
+                      myImage={myImage} 
+                      isVip={isVip} 
+                      setShowPaywall={setShowPaywall} 
+                      tab={tab} 
+                      searchQuery={searchQuery} 
+                      setSearchQuery={setSearchQuery} 
+                      setCurrentPage={setCurrentPage}
+                      setShowFilters={setShowFilters} 
+                      setTab={setTab} 
+                      setDiscoveryMode={setDiscoveryMode} 
+                      discoveryMode={discoveryMode} 
+                      unreadCount={unreadCount}
+                      handleLogout={handleLogout} 
                     />
                   )}
 
-                  {tab === 'lobby' && (
-                    <Lobby 
-                      lobbyMessages={lobbyMessages} 
-                      lobbyInput={lobbyInput} 
-                      setLobbyInput={setLobbyInput} 
-                      sendLobbyMessage={sendLobbyMessage}
-                      isAdmin={isAdmin}          
-                      isVip={isVip}            
-                      setShowPaywall={setShowPaywall}
-                      totalFreeMessages={totalFreeMessages} 
-                      setTotalFreeMessages={setTotalFreeMessages}
-                    />
-                  )}
-
-                  {tab === 'favorites' && (
-                    <View className="flex-1 bg-gray-50">
-                      <View className="flex-row border-b border-gray-200 bg-white">
-                        <TouchableOpacity 
-                          onPress={() => setFavTab('my_likes')} 
-                          className={`flex-1 p-4 items-center ${favTab === 'my_likes' ? 'border-b-2 border-green-500' : ''}`}
-                        >
-                          <Text className={`font-bold ${favTab === 'my_likes' ? 'text-green-500' : 'text-gray-400'}`}>❤️ I Liked</Text>
-                        </TouchableOpacity>
+                  <View className="flex-1">
+                    {tab === 'discover' && (
+                      <View className="flex-1 relative">
                         
-                        <TouchableOpacity 
-                          onPress={() => setFavTab('liked_me')} 
-                          className={`flex-1 p-4 items-center ${favTab === 'liked_me' ? 'border-b-2 border-green-500' : ''}`}
-                        >
-                          <Text className={`font-bold ${favTab === 'liked_me' ? 'text-green-500' : 'text-gray-400'}`}>✨ Liked Me</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                          onPress={() => setFavTab('viewed_me')} 
-                          className={`flex-1 p-4 items-center ${favTab === 'viewed_me' ? 'border-b-2 border-green-500' : ''}`}
-                        >
-                          <Text className={`font-bold ${favTab === 'viewed_me' ? 'text-green-500' : 'text-gray-400'}`}>👁️ Viewed Me</Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      {favTab === 'my_likes' && (
-                        <FlatList 
-                          data={favoriteProfiles} 
-                          renderItem={({item}) => (
-                            <UserCard 
-                              item={item} 
-                              onSelect={handleProfileView} 
-                              onToggleLike={toggleLike} 
-                            />
-                          )} 
-                          numColumns={2} 
-                          keyExtractor={item => item.id} 
-                          ListEmptyComponent={
-                            <Text className="text-center mt-12 text-gray-400">
-                              You haven't liked anyone yet.
-                            </Text>
-                          }
-                        />
-                      )}
-
-                      {(favTab === 'liked_me' || favTab === 'viewed_me') && (
-                        <View className="flex-1">
-                          {isVip || isAdmin ? (
+                        {/* LIST VIEW */}
+                        {discoveryMode === 'list' && (
+                          <>
                             <FlatList 
-                              data={favTab === 'liked_me' ? likedMeProfiles : viewedMeProfiles} 
+                              data={currentUsers} 
                               renderItem={({item}) => (
                                 <UserCard 
                                   item={item} 
@@ -901,175 +788,407 @@ export default function App() {
                               )} 
                               numColumns={2} 
                               keyExtractor={item => item.id}
+                              contentContainerStyle={{ padding: 4, paddingBottom: 80 }}
                               ListEmptyComponent={
                                 <Text className="text-center mt-12 text-gray-400">
-                                  {favTab === 'liked_me' ? "No likes yet." : "No profile views yet."}
+                                  No results found in your area.
                                 </Text>
                               }
                             />
-                          ) : (
-                            <View className="flex-1 items-center justify-center p-6 bg-gray-50">
-                              <Text className="text-6xl mb-4">🔒</Text>
-                              <Text className="text-2xl font-black text-black text-center mb-2">Premium Feature</Text>
-                              <Text className="text-gray-500 text-center mb-8 font-bold leading-6">
-                                {favTab === 'liked_me' 
-                                  ? "Subscribe to see everyone who swiped right on you." 
-                                  : "Subscribe to see exactly who is looking at your profile in real-time."}
-                              </Text>
+                            
+                            <View className="h-[70px] flex-row justify-between items-center px-5 border-t border-gray-200">
                               <TouchableOpacity 
-                                onPress={() => setShowPaywall(true)} 
-                                className="bg-green-500 w-full py-4 rounded-full items-center shadow-lg shadow-green-500/30"
+                                onPress={() => setCurrentPage(prev => Math.max(prev - 1, 1))} 
+                                className="bg-green-500 p-2.5 rounded-lg min-w-[80px] items-center"
                               >
-                                <Text className="text-white font-black text-lg">Unlock VIP Now</Text>
+                                <Text className="text-white font-bold">Prev</Text>
+                              </TouchableOpacity>
+                              
+                              <Text className="text-gray-800 font-bold text-base">
+                                {currentPage} / {totalPages || 1}
+                              </Text>
+                              
+                              <TouchableOpacity 
+                                onPress={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} 
+                                className="bg-green-500 p-2.5 rounded-lg min-w-[80px] items-center"
+                              >
+                                <Text className="text-white font-bold">Next</Text>
                               </TouchableOpacity>
                             </View>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                  )}
 
-                  {tab === 'admin' && (
-                    <AdminDashboard 
-                      profiles={profiles} 
-                      setProfiles={setProfiles} 
-                      isVip={isVip} 
-                      setLobbyMessages={setLobbyMessages}
-                      setMessages={setMessages}
-                    />
-                  )}
-
-                  {tab === 'settings' && (
-                    <View className="flex-1 bg-gray-50">
-                      <View className="px-4">
-                        <InvisibleModeToggle 
-                          isPrivate={isPrivate} 
-                          toggleInvisibleMode={toggleInvisibleMode} 
-                          isVip={isVip} 
-                          isAdmin={isAdmin} 
-                          setShowPaywall={setShowPaywall} 
-                        />
-                      </View>
-
-                      {showEditProfile ? (
-                        <View className="flex-1 bg-white mt-4 rounded-t-3xl overflow-hidden shadow-lg">
-                          <View className="p-4 border-b border-gray-200 bg-gray-50 flex-row items-center shadow-sm z-10">
                             <TouchableOpacity 
-                              onPress={() => setShowEditProfile(false)} 
-                              className="px-2 py-1"
+                              onPress={() => { setTab('favorites'); setFavTab('viewed_me'); }}
+                              className="absolute bottom-24 right-6 bg-white/70 border border-white/60 rounded-full px-5 py-3 flex-row items-center shadow-lg backdrop-blur-md"
+                              style={{ elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8 }}
                             >
-                              <Text className="text-green-500 font-black text-[16px]">
-                                ← Back to Dashboard
+                              <Text className="text-[20px] mr-2">👁️</Text>
+                              <Text className="font-black text-gray-800 tracking-tight">
+                                {viewedMeProfiles.length} Views
                               </Text>
+                              {viewedMeProfiles.length > 0 && (
+                                <View className="absolute top-0 right-0 bg-red-500 w-3 h-3 rounded-full border border-white" />
+                              )}
                             </TouchableOpacity>
+                          </>
+                        )}
+
+                        {/* SWIPE VIEW */}
+                        {discoveryMode === 'swipe' && isVip && (
+                          <View className="flex-1 items-center justify-center">
+                            {filteredProfiles.slice(swipeIndex, swipeIndex + 3).reverse().map((p, i) => {
+                              const isTop = i === 2 || (filteredProfiles.length - swipeIndex < 3 && i === filteredProfiles.length - swipeIndex - 1);
+                              return (
+                                <Animated.View 
+                                  key={p.id} 
+                                  className="absolute w-[90%] h-[60%] rounded-[20px] overflow-hidden bg-white shadow-lg elevation-5"
+                                  style={isTop ? { transform: position.getTranslateTransform() } : {}}
+                                  {...(isTop ? panResponder.panHandlers : {})}
+                                >
+                                  <Image source={{uri: p.image}} className="w-full h-[80%]" />
+                                  <View className="p-4">
+                                    <Text className="text-[22px] font-bold">{p.name}, {p.age}</Text>
+                                    <Text className="text-[14px] text-gray-500">{p.town} • {p.sexuality}</Text>
+                                  </View>
+                                </Animated.View>
+                              );
+                            })}
+                            <SwipeButton completeSwipe={completeSwipe} />
                           </View>
-                          <EditProfile 
-                            myId={myId}              
-                            myImage={myImage}       
-                            setMyImage={setMyImage} 
-                            myName={myName} 
-                            setMyName={setMyName}
-                            myCity={myCity} 
-                            setMyCity={setMyCity}
-                            isPrivate={isPrivate} 
-                            setIsPrivate={setIsPrivate}
-                            notificationsEnabled={notificationsEnabled} 
-                            setNotificationsEnabled={setNotificationsEnabled}
-                            setShowPaywall={setShowPaywall}
-                          />
+                        )}
+
+                        {/* RADAR VIEW */}
+                        {discoveryMode === 'radar' && isVip && (
+                          <View className="flex-1 justify-center items-center bg-gray-50">
+                            <Animated.View 
+                              className="absolute w-[100px] h-[100px] rounded-full border-2 border-green-500"
+                              style={{
+                                transform: [{ scale: radarAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 4] }) }],
+                                opacity: radarAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })
+                              }} 
+                            />
+                            <View className="w-[15px] h-[15px] rounded-full bg-green-500 elevation-5" />
+                            {filteredProfiles.slice(0, 6).map((p, i) => (
+                              <TouchableOpacity 
+                                key={p.id} 
+                                onPress={() => setSelectedUser(p)}
+                                className="absolute items-center"
+                                style={{ top: 150 + Math.sin(i) * 100, left: (width/2 - 25) + Math.cos(i) * 100 }}
+                              >
+                                <Image source={{uri: p.image}} className="w-[50px] h-[50px] rounded-full border-2 border-white" />
+                                <Text className="text-[10px] text-gray-500 font-bold">{p.distance}km</Text>
+                              </TouchableOpacity>
+                            ))}
+                            <Text className="absolute bottom-12 text-gray-400 font-bold">
+                              Scanning for connections in {myCity}...
+                            </Text>
+                          </View>
+                        )}
+
+                      </View>
+                    )}
+
+                    {tab === 'inbox' && (
+                      <Inbox 
+                        messages={messages}
+                        setMessages={setMessages}
+                        profiles={profiles}
+                        setChatUser={setChatUser}
+                        setTab={setTab}
+                      />
+                    )}
+
+                    {tab === 'lobby' && (
+                      <Lobby 
+                        lobbyMessages={lobbyMessages} 
+                        lobbyInput={lobbyInput} 
+                        setLobbyInput={setLobbyInput} 
+                        sendLobbyMessage={sendLobbyMessage}
+                        isAdmin={isAdmin}          
+                        isVip={isVip}            
+                        setShowPaywall={setShowPaywall}
+                        totalFreeMessages={totalFreeMessages} 
+                        setTotalFreeMessages={setTotalFreeMessages}
+                      />
+                    )}
+
+                    {tab === 'favorites' && (
+                      <View className="flex-1 bg-gray-50">
+                        <View className="flex-row border-b border-gray-200 bg-white">
+                          <TouchableOpacity 
+                            onPress={() => setFavTab('my_likes')} 
+                            className={`flex-1 p-4 items-center ${favTab === 'my_likes' ? 'border-b-2 border-green-500' : ''}`}
+                          >
+                            <Text className={`font-bold ${favTab === 'my_likes' ? 'text-green-500' : 'text-gray-400'}`}>❤️ I Liked</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity 
+                            onPress={() => setFavTab('liked_me')} 
+                            className={`flex-1 p-4 items-center ${favTab === 'liked_me' ? 'border-b-2 border-green-500' : ''}`}
+                          >
+                            <Text className={`font-bold ${favTab === 'liked_me' ? 'text-green-500' : 'text-gray-400'}`}>✨ Liked Me</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity 
+                            onPress={() => setFavTab('viewed_me')} 
+                            className={`flex-1 p-4 items-center ${favTab === 'viewed_me' ? 'border-b-2 border-green-500' : ''}`}
+                          >
+                            <Text className={`font-bold ${favTab === 'viewed_me' ? 'text-green-500' : 'text-gray-400'}`}>👁️ Viewed Me</Text>
+                          </TouchableOpacity>
                         </View>
-                      ) : (
-                        <View className="flex-1 bg-white mt-4 rounded-t-3xl overflow-hidden shadow-lg">
-                       <UserDashboard 
-                            myId={myId}              
-                            myImage={myImage}       
-                            setMyImage={setMyImage} 
-                            myGalleryImages={myGalleryImages} // 🚀 PASS GALLERY TO DASHBOARD
-                            setMyGalleryImages={setMyGalleryImages} 
-                            myName={myName} 
-                            myCity={myCity} 
+
+                        {favTab === 'my_likes' && (
+                          <FlatList 
+                            data={favoriteProfiles} 
+                            renderItem={({item}) => (
+                              <UserCard 
+                                item={item} 
+                                onSelect={handleProfileView} 
+                                onToggleLike={toggleLike} 
+                              />
+                            )} 
+                            numColumns={2} 
+                            keyExtractor={item => item.id} 
+                            ListEmptyComponent={
+                              <Text className="text-center mt-12 text-gray-400">
+                                You haven't liked anyone yet.
+                              </Text>
+                            }
+                          />
+                        )}
+
+                        {(favTab === 'liked_me' || favTab === 'viewed_me') && (
+                          <View className="flex-1">
+                            {isVip || isAdmin ? (
+                              <FlatList 
+                                data={favTab === 'liked_me' ? likedMeProfiles : viewedMeProfiles} 
+                                renderItem={({item}) => (
+                                  <UserCard 
+                                    item={item} 
+                                    onSelect={handleProfileView} 
+                                    onToggleLike={toggleLike} 
+                                  />
+                                )} 
+                                numColumns={2} 
+                                keyExtractor={item => item.id}
+                                ListEmptyComponent={
+                                  <Text className="text-center mt-12 text-gray-400">
+                                    {favTab === 'liked_me' ? "No likes yet." : "No profile views yet."}
+                                  </Text>
+                                }
+                              />
+                            ) : (
+                              <View className="flex-1 items-center justify-center p-6 bg-gray-50">
+                                <Text className="text-6xl mb-4">🔒</Text>
+                                <Text className="text-2xl font-black text-black text-center mb-2">Premium Feature</Text>
+                                <Text className="text-gray-500 text-center mb-8 font-bold leading-6">
+                                  {favTab === 'liked_me' 
+                                    ? "Subscribe to see everyone who swiped right on you." 
+                                    : "Subscribe to see exactly who is looking at your profile in real-time."}
+                                </Text>
+                                <TouchableOpacity 
+                                  onPress={() => setShowPaywall(true)} 
+                                  className="bg-green-500 w-full py-4 rounded-full items-center shadow-lg shadow-green-500/30"
+                                >
+                                  <Text className="text-white font-black text-lg">Unlock VIP Now</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    {tab === 'admin' && (
+                      <AdminDashboard 
+                        profiles={profiles} 
+                        setProfiles={setProfiles} 
+                        isVip={isVip} 
+                        setLobbyMessages={setLobbyMessages}
+                        setMessages={setMessages}
+                      />
+                    )}
+
+                    {tab === 'settings' && (
+                      <View className="flex-1 bg-gray-50">
+                        <View className="px-4">
+                          <InvisibleModeToggle 
+                            isPrivate={isPrivate} 
+                            toggleInvisibleMode={toggleInvisibleMode} 
                             isVip={isVip} 
                             isAdmin={isAdmin} 
                             setShowPaywall={setShowPaywall} 
-                            openEditProfile={() => setShowEditProfile(true)}
-                            receivedGifts={receivedGifts}
                           />
+
+                          {/* 🚀 NEW: MANAGE BLOCKED USERS BUTTON 🚀 */}
+                          <TouchableOpacity 
+                            className="bg-red-50 p-[15px] rounded-[15px] items-center mt-4 border border-red-200"
+                            onPress={() => {
+                              fetchBlockedUsers();
+                              setShowBlockList(true);
+                            }}
+                          >
+                            <Text className="text-red-600 font-bold">🚫 Manage Blocked Users</Text>
+                          </TouchableOpacity>
                         </View>
-                      )}
-                    </View>
-                  )}
-                </View>
 
-                <View className="h-20 flex-row border-t border-gray-200 bg-white pb-2">
-                  {[
-                    {id: 'discover', label: 'Explore', icon: '🌍'},
-                    {id: 'lobby', label: 'Lobby', icon: '💬'},
-                    {id: 'favorites', label: 'Likes', icon: '❤️'},
-                    {id: 'settings', label: 'Self', icon: '👤'},
-                    ...(isAdmin ? [{id: 'admin', label: 'Mod', icon: '🛠️'}] : []) 
-                  ].map((item) => (
-                    <TouchableOpacity 
-                      key={item.id} 
-                      className="flex-1 justify-center items-center" 
-                      onPress={() => setTab(item.id as any)}
-                    >
-                      <Text className="text-[20px]">{item.icon}</Text>
-                      <Text className={`text-[10px] font-bold mt-1 ${tab === item.id ? 'text-green-500' : 'text-gray-400'}`}>
-                        {item.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                        {showEditProfile ? (
+                          <View className="flex-1 bg-white mt-4 rounded-t-3xl overflow-hidden shadow-lg">
+                            <View className="p-4 border-b border-gray-200 bg-gray-50 flex-row items-center shadow-sm z-10">
+                              <TouchableOpacity 
+                                onPress={() => setShowEditProfile(false)} 
+                                className="px-2 py-1"
+                              >
+                                <Text className="text-green-500 font-black text-[16px]">
+                                  ← Back to Dashboard
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                            <EditProfile 
+                              myId={myId}              
+                              myImage={myImage}       
+                              setMyImage={setMyImage} 
+                              myName={myName} 
+                              setMyName={setMyName}
+                              myCity={myCity} 
+                              setMyCity={setMyCity}
+                              isPrivate={isPrivate} 
+                              setIsPrivate={setIsPrivate}
+                              notificationsEnabled={notificationsEnabled} 
+                              setNotificationsEnabled={setNotificationsEnabled}
+                              setShowPaywall={setShowPaywall}
+                              refreshUserData={fetchInitialData} 
+                            />
+                          </View>
+                        ) : (
+                          <View className="flex-1 bg-white mt-4 rounded-t-3xl overflow-hidden shadow-lg">
+                            <UserDashboard 
+                              myId={myId}              
+                              myImage={myImage}       
+                              setMyImage={setMyImage} 
+                              myGalleryImages={myGalleryImages} 
+                              setMyGalleryImages={setMyGalleryImages} 
+                              myName={myName} 
+                              myCity={myCity} 
+                              isVip={isVip} 
+                              isAdmin={isAdmin} 
+                              setShowPaywall={setShowPaywall} 
+                              openEditProfile={() => setShowEditProfile(true)}
+                              receivedGifts={receivedGifts}
+                            />
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
 
-                <AllModals 
-                  showFilters={showFilters} 
-                  setShowFilters={setShowFilters} 
-                  filterGender={filterGender} 
-                  setFilterGender={setFilterGender} 
-                  filterSexuality={filterSexuality} 
-                  setFilterSexuality={setFilterSexuality} 
-                  SEXUALITIES={SEXUALITIES} 
-                  setCurrentPage={setCurrentPage}
-                  selectedUser={selectedUser} 
-                  setSelectedUser={setSelectedUser} 
-                  toggleLike={toggleLike} 
-                  profiles={profiles} 
-                  setChatUser={setChatUser}
-                  chatUser={chatUser} 
-                  setChatUserModal={setChatUser} 
-                  messages={messages} 
-                  setMessages={setMessages} 
-                  chatInput={chatInput} 
-                  setChatInput={setChatInput} 
-                  navigation={navigationRef}
-                  handleSendMessage={handleSendMessage}
-                  handleStartVideoCall={handleStartVideoCall} 
-                  handleAddFriend={handleAddFriend}
-                  handleSendGift={handleSendGift} 
-                  myId={myId} 
-                  myImage={myImage} // 🚀 FIXED: PASSED IMAGE
-                  isAdmin={isAdmin}
-                  isVip={isVip}
-                  setShowPaywall={setShowPaywall}
-                  totalFreeMessages={totalFreeMessages} 
-                  setTotalFreeMessages={setTotalFreeMessages}
-                />
+                  <View className="h-20 flex-row border-t border-gray-200 bg-white pb-2">
+                    {[
+                      {id: 'discover', label: 'Explore', icon: '🌍'},
+                      {id: 'lobby', label: 'Lobby', icon: '💬'},
+                      {id: 'favorites', label: 'Likes', icon: '❤️'},
+                      {id: 'settings', label: 'Self', icon: '👤'},
+                      ...(isAdmin ? [{id: 'admin', label: 'Mod', icon: '🛠️'}] : []) 
+                    ].map((item) => (
+                      <TouchableOpacity 
+                        key={item.id} 
+                        className="flex-1 justify-center items-center" 
+                        onPress={() => setTab(item.id as any)}
+                      >
+                        <Text className="text-[20px]">{item.icon}</Text>
+                        <Text className={`text-[10px] font-bold mt-1 ${tab === item.id ? 'text-green-500' : 'text-gray-400'}`}>
+                          {item.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
 
-                <Subscription 
-                  showPaywall={showPaywall} 
-                  setShowPaywall={setShowPaywall} 
-                  handlePayment={handlePayment} 
-                  isAdmin={isAdmin} 
-                />
-              </SafeAreaView>
-            );
-          }}
-        </Stack.Screen>
+                  {/* 🚀 MODALS INSTANCE 🚀 */}
+                  <AllModals 
+                    showFilters={showFilters} 
+                    setShowFilters={setShowFilters} 
+                    filterGender={filterGender} 
+                    setFilterGender={setFilterGender} 
+                    filterSexuality={filterSexuality} 
+                    setFilterSexuality={setFilterSexuality} 
+                    SEXUALITIES={SEXUALITIES} 
+                    setCurrentPage={setCurrentPage}
+                    selectedUser={selectedUser} 
+                    setSelectedUser={setSelectedUser} 
+                    toggleLike={toggleLike} 
+                    profiles={profiles} 
+                    setChatUser={setChatUser}
+                    chatUser={chatUser} 
+                    setChatUserModal={setChatUser} 
+                    messages={messages} 
+                    setMessages={setMessages} 
+                    chatInput={chatInput} 
+                    setChatInput={setChatInput} 
+                    navigation={navigationRef}
+                    handleSendMessage={handleSendMessage}
+                    handleStartVideoCall={handleStartVideoCall} 
+                    handleAddFriend={handleAddFriend}
+                    handleSendGift={handleSendGift} 
+                    myId={myId} 
+                    myImage={myImage} 
+                    isAdmin={isAdmin}
+                    isVip={isVip}
+                    setShowPaywall={setShowPaywall}
+                    totalFreeMessages={totalFreeMessages} 
+                    setTotalFreeMessages={setTotalFreeMessages}
+                  />
 
-        <Stack.Screen name="CloudflareVideoCall" component={CloudflareVideoCall} />
+                  <Subscription 
+                    showPaywall={showPaywall} 
+                    setShowPaywall={setShowPaywall} 
+                    handlePayment={handlePayment} 
+                    isAdmin={isAdmin} 
+                  />
 
-      </Stack.Navigator>
-    </NavigationContainer>
+                  {/* 🚀 NEW: BLOCK LIST MODAL OVERLAY 🚀 */}
+                  <Modal visible={showBlockList} animationType="slide">
+                    <SafeAreaView className="flex-1 bg-white">
+                      <View className="flex-row items-center justify-between p-5 border-b border-gray-200">
+                        <TouchableOpacity onPress={() => setShowBlockList(false)}>
+                          <Text className="text-green-500 font-bold text-lg">← Back</Text>
+                        </TouchableOpacity>
+                        <Text className="text-xl font-black text-black">Blocked Users</Text>
+                        <View style={{ width: 50 }} />
+                      </View>
+                      <FlatList
+                        data={blockedUsers}
+                        keyExtractor={item => item.id.toString()}
+                        ListEmptyComponent={
+                          <Text className="text-center mt-10 text-gray-500 font-bold">
+                            You haven't blocked anyone.
+                          </Text>
+                        }
+                        renderItem={({item}) => (
+                          <View className="flex-row items-center justify-between p-4 border-b border-gray-100 mx-2">
+                            <View className="flex-row items-center">
+                              <Image source={{uri: item.image}} className="w-12 h-12 rounded-full mr-3 border border-gray-200" />
+                              <Text className="font-bold text-lg text-black">{item.name}</Text>
+                            </View>
+                            <TouchableOpacity
+                              onPress={() => handleUnblockUser(item.id)}
+                              className="bg-gray-200 px-4 py-2 rounded-full"
+                            >
+                              <Text className="text-black font-bold">Unblock</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      />
+                    </SafeAreaView>
+                  </Modal>
+
+                </SafeAreaView>
+              );
+            }}
+          </Stack.Screen>
+
+          <Stack.Screen name="CloudflareVideoCall" component={CloudflareVideoCall} />
+
+        </Stack.Navigator>
+      </NavigationContainer>
     </SafeAreaProvider> 
   );
 }

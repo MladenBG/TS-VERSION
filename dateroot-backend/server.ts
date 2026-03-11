@@ -172,6 +172,61 @@ app.post('/api/users/update-image', async (req: Request, res: Response) => {
   }
 });
 
+app.post('/api/users/update-profile', async (req: Request, res: Response) => {
+  const { 
+    userId, name, bio, hereFor, city, country, music, education, 
+    sexuality, bodyType, hairColor, eyeColor, weight, height, 
+    day, month, year 
+  } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ error: "Missing userId" });
+  }
+
+  try {
+    const updateQuery = `
+      UPDATE users 
+      SET 
+        name = $1, 
+        bio = $2, 
+        here_for = $3,
+        city = $4, 
+        country = $5, 
+        music = $6, 
+        education = $7, 
+        sexuality = $8, 
+        body_type = $9, 
+        hair_color = $10, 
+        eye_color = $11, 
+        weight = $12, 
+        height = $13, 
+        dob_day = $14, 
+        dob_month = $15, 
+        dob_year = $16
+      WHERE id = $17
+      RETURNING *;
+    `;
+
+    const values = [
+      name || null, bio || null, hereFor || null, city || null, country || null, 
+      music || null, education || null, sexuality || null, bodyType || null, 
+      hairColor || null, eyeColor || null, weight || null, height || null, 
+      day || null, month || null, year || null, userId
+    ];
+
+    const result = await pool.query(updateQuery, values);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ success: true, message: "Profile updated successfully" });
+  } catch (error: any) {
+    console.error("Profile Update Error:", error);
+    res.status(500).json({ error: "Failed to update profile", details: error.message });
+  }
+});
+
 app.post('/api/gallery/add', async (req: Request, res: Response) => {
   const { userId, imageUrl } = req.body as UserUpdatePayload;
   try {
@@ -279,11 +334,12 @@ app.post('/api/admin/resolve-report', async (req: Request, res: Response) => {
   }
 });
 
+// 🚀 FIXED: PROPER BLOCK ROUTE THAT SAVES TO DATABASE 🚀
 app.post('/api/block', async (req: Request, res: Response) => {
   const { blockerId, blockedId } = req.body as BlockPayload;
   try {
     await pool.query(
-      'INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES ($1, $2, NOW())',
+      'INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING',
       [blockerId, blockedId]
     );
     res.json({ success: true, message: "User blocked successfully" });
@@ -292,6 +348,35 @@ app.post('/api/block', async (req: Request, res: Response) => {
   }
 });
 
+app.post('/api/unblock', async (req: Request, res: Response) => {
+  const { blockerId, blockedId } = req.body as BlockPayload;
+  try {
+    await pool.query(
+      'DELETE FROM blocks WHERE blocker_id = $1 AND blocked_id = $2',
+      [blockerId, blockedId]
+    );
+    res.json({ success: true, message: "User unblocked successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to unblock user" });
+  }
+});
+
+app.get('/api/blocks/:userId', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const result = await pool.query(`
+      SELECT u.id, u.name, u.image 
+      FROM blocks b 
+      JOIN users u ON b.blocked_id = u.id 
+      WHERE b.blocker_id = $1
+    `, [userId]);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch blocked users" });
+  }
+});
+
+// 🚀 FIXED: PROPER REPORT ROUTE THAT SAVES TO DATABASE 🚀
 app.post('/api/report', async (req: Request, res: Response) => {
   const { reporterId, reportedId, reason } = req.body as ReportPayload;
   try {
@@ -305,9 +390,19 @@ app.post('/api/report', async (req: Request, res: Response) => {
   }
 });
 
+// 🚀 FIXED: ADMIN NOW GETS USERNAMES INSTEAD OF JUST UUIDS 🚀
 app.get('/api/admin/reports', async (req: Request, res: Response) => {
   try {
-    const result = await pool.query("SELECT * FROM reports WHERE status = 'pending' ORDER BY created_at DESC");
+    const result = await pool.query(`
+      SELECT r.id, r.reason, r.status, r.created_at, 
+             u1.name AS reporter_name, 
+             u2.name AS reported_name 
+      FROM reports r 
+      LEFT JOIN users u1 ON r.reporter_id = u1.id 
+      LEFT JOIN users u2 ON r.reported_id = u2.id 
+      WHERE r.status = 'pending' 
+      ORDER BY r.created_at DESC
+    `);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch reports" });
@@ -350,9 +445,13 @@ app.get('/api/likes/my-likes', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/likes/who-liked-me', (req: Request, res: Response) => res.json([]));
-app.get('/api/views', (req: Request, res: Response) => res.json([]));
-app.get('/api/gifts', (req: Request, res: Response) => res.json([]));
+app.get('/api/likes/who-liked-me', async (req: Request, res: Response) => res.json([]));
+app.get('/api/views', async (req: Request, res: Response) => res.json([]));
+app.get('/api/gifts', async (req: Request, res: Response) => res.json([]));
+
+app.post('/api/views', async (req: Request, res: Response) => {
+  res.json({ success: true });
+});
 
 app.get('/api/lobby', async (req: Request, res: Response) => {
   try {
@@ -382,10 +481,21 @@ app.get('/api/lobby', async (req: Request, res: Response) => {
 app.post('/api/lobby', async (req: Request, res: Response) => {
   const { sender_id, content } = req.body;
   try {
+    const userRes = await pool.query('SELECT message_count, is_vip, role FROM users WHERE id = $1', [sender_id]);
+    if (userRes.rows.length > 0) {
+        const user = userRes.rows[0];
+        if (!user.is_vip && user.role !== 'admin' && (user.message_count || 0) >= 2) {
+            return res.status(403).json({ error: "Limit Reached" }); 
+        }
+    }
+
     const result = await pool.query(
       'INSERT INTO lobby_messages (sender_id, content, created_at) VALUES ($1, $2, NOW()) RETURNING id',
       [sender_id, content]
     );
+
+    await pool.query('UPDATE users SET message_count = COALESCE(message_count, 0) + 1 WHERE id = $1', [sender_id]);
+
     res.json({ success: true, id: result.rows[0].id.toString(), time: new Date().toLocaleTimeString() });
   } catch (error) {
     res.status(500).json({ error: "Failed to process lobby message" });
@@ -438,7 +548,6 @@ app.get('/api/messages', async (req: Request, res: Response) => {
       return res.json(grouped);
     }
   } catch (error) {
-    console.error("Messages GET Error:", error);
     res.json(otherId ? [] : {}); 
   }
 });
@@ -446,15 +555,29 @@ app.get('/api/messages', async (req: Request, res: Response) => {
 app.post('/api/messages', async (req: Request, res: Response) => {
   const { sender_id, receiver_id, content } = req.body;
   try {
+    const userRes = await pool.query('SELECT message_count, is_vip, role FROM users WHERE id = $1', [sender_id]);
+    if (userRes.rows.length > 0) {
+        const user = userRes.rows[0];
+        if (!user.is_vip && user.role !== 'admin' && (user.message_count || 0) >= 2) {
+            return res.status(403).json({ error: "Limit Reached" }); 
+        }
+    }
+
     await pool.query(
       'INSERT INTO private_messages (sender_id, receiver_id, content, created_at) VALUES ($1, $2, $3, NOW())',
       [sender_id, receiver_id, content]
     );
+
+    await pool.query('UPDATE users SET message_count = COALESCE(message_count, 0) + 1 WHERE id = $1', [sender_id]);
+
     res.json({ success: true });
   } catch (error) {
-    console.error("Private Message POST Error:", error);
     res.status(500).json({ error: "Failed to process private message" });
   }
+});
+
+app.post('/api/settings/invisible', async (req: Request, res: Response) => {
+  res.json({ success: true });
 });
 
 io.on("connection", (socket: Socket) => {

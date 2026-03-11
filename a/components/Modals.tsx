@@ -103,12 +103,13 @@ export const AllModals = ({
           style: "destructive", 
           onPress: async () => {
             try {
-              await fetch(`${API_URL}/api/admin/reports`, {
+              // 🚀 FIXED: CORRECT ENDPOINT AND PAYLOAD MATCHES DB 🚀
+              await fetch(`${API_URL}/api/report`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                  reporter_id: myId, 
-                  reported_id: chatUser.id, 
+                  reporterId: myId, 
+                  reportedId: chatUser.id, 
                   reason: "Inappropriate behavior in private chat" 
                 })
               });
@@ -133,18 +134,19 @@ export const AllModals = ({
           style: "destructive", 
           onPress: async () => {
             try {
-              await fetch(`${API_URL}/api/users/block`, {
+              // 🚀 FIXED: HITS /api/block DIRECTLY 🚀
+              await fetch(`${API_URL}/api/block`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                  blocker_id: myId, 
-                  blocked_id: chatUser.id 
+                  blockerId: myId, 
+                  blockedId: chatUser.id 
                 })
               });
               Alert.alert("Blocked", `${chatUser.name} has been blocked.`);
               setChatUserModal(null); 
             } catch (error) {
-              Alert.alert("Blocked", `${chatUser.name} has been blocked.`);
+              Alert.alert("Error", `Could not block user.`);
               setChatUserModal(null);
             }
           } 
@@ -240,8 +242,6 @@ export const AllModals = ({
                   </View>
                   <Text className="text-[16px] text-[#666] mt-1">{selectedUser.town} • {selectedUser.gender} ({selectedUser.sexuality})</Text>
                   <Text className="text-[16px] text-[#444] mt-[15px] mb-[20px] leading-6">{selectedUser.bio}</Text>
-                  
-                  {/* 🚀 ALL DUMMY DATA HAS BEEN RIPPED OUT. ONLY LOADS REAL DATABASE DATA NOW. 🚀 */}
                   
                   <ImageGallery 
                     initialImages={selectedUser?.gallery?.length > 0 ? selectedUser.gallery : [selectedUser?.image]} 
@@ -345,11 +345,18 @@ export const AllModals = ({
               </View>
 
               <View className="flex-row items-center">
-                {/* Video Call Button */}
+                
+                {/* 🚀 ADMINS / VIP VIDEO CALL FIX 🚀 */}
                 <TouchableOpacity 
                   onPress={() => {
-                    setChatUserModal(null);
-                    handleStartVideoCall(chatUser);
+                    if (isAdmin || isVip) {
+                      setChatUserModal(null);
+                      handleStartVideoCall(chatUser);
+                    } else {
+                      setChatUserModal(null);
+                      Alert.alert("Premium Feature", "Video calling is locked. Subscribe to connect face-to-face!");
+                      if (setShowPaywall) setShowPaywall(true);
+                    }
                   }}
                   className="mr-3"
                 >

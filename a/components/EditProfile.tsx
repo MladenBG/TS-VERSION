@@ -3,28 +3,34 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Alert, Swit
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 
-// 🚀 IMPORT THE NEW COMPONENT
 import { DeleteAccountButton } from './DeleteAccountButton'; 
 
-// =========================================================================
-// 🚨 THE MASTER URL SWITCH 🚨
-// =========================================================================
-// USE NGROK FOR BOTH EMULATOR AND PHONE AT THE SAME TIME:
-//const API_URL = "https://marshall-voltametric-clair.ngrok-free.dev"; 
-
-// 🚀 FIXED: POINTING TO PORT 3001 TO MATCH BACKEND
 const API_URL = "http://10.0.2.2:3001"; 
-// =========================================================================
 
-// --- DATA LISTS FOR PICKERS ---
-const MUSIC_OPTIONS = ["Electronic", "Classical", "Hip-hop", "Dance", "Pop", "Rock", "Metal", "Jazz"];
-const EDUCATION_OPTIONS = ["No Education", "High School", "College", "Master", "PhD", "Other"];
-const SEXUALITY_OPTIONS = ["Heterosexual", "Gay", "Lesbian", "Bisexual", "Other"];
-const BODY_TYPE_OPTIONS = ["Athletic", "Fat", "Normal", "Slim", "Muscular", "Curvy"];
-const COUNTRY_OPTIONS = ["Serbia", "USA", "UK", "Germany", "France", "Spain", "Italy", "Croatia", "Japan", "Brazil"];
-const CITY_OPTIONS = ["Subotica", "Belgrade", "Novi Sad", "Miami", "London", "Paris", "Berlin", "New York", "Tokyo"];
+const HERE_FOR_OPTIONS = ["Dating", "Romance", "Friendship", "Networking", "Something Else"];
+const SEXUALITY_OPTIONS = ["Heterosexual", "Bisexual", "Lesbian", "Gay", "Other"];
+const MUSIC_OPTIONS = ["Dance", "Electronic", "Jazz", "Rock", "Pop", "Classical", "Hip-hop", "Metal", "R&B", "Country", "Other"];
+const EDUCATION_OPTIONS = ["No Education", "High School", "In College", "Undergraduate Degree", "Master's", "PhD", "Other"];
+const BODY_TYPE_OPTIONS = ["Athletic", "Fat", "Normal", "Slim", "Muscular", "Curvy", "Other"];
 const HAIR_OPTIONS = ["Black", "Brown", "Blonde", "Red", "Grey", "Bald", "Other"];
 const EYE_OPTIONS = ["Brown", "Blue", "Green", "Hazel", "Grey", "Other"];
+
+const COUNTRY_OPTIONS = [
+  "USA", "UK", "Canada", "Australia", "Serbia", "Croatia", "Bosnia", "Montenegro", "Macedonia", "Slovenia",
+  "Germany", "France", "Italy", "Spain", "Portugal", "Netherlands", "Belgium", "Switzerland", "Austria", "Sweden",
+  "Norway", "Denmark", "Finland", "Ireland", "Poland", "Greece", "Turkey", "Russia", "Ukraine", "Romania",
+  "Bulgaria", "Hungary", "Czech Republic", "Slovakia", "Japan", "South Korea", "China", "India", "Brazil", "Argentina",
+  "Colombia", "Chile", "Mexico", "South Africa", "Egypt", "Morocco", "Nigeria", "Kenya", "New Zealand", "Other"
+];
+
+const CITY_OPTIONS = [
+  "Belgrade", "Novi Sad", "Subotica", "Nis", "Kragujevac", "Zagreb", "Split", "Sarajevo", "Banja Luka", "Podgorica",
+  "Skopje", "Ljubljana", "London", "Manchester", "New York", "Los Angeles", "Chicago", "Miami", "Toronto", "Vancouver",
+  "Sydney", "Melbourne", "Berlin", "Munich", "Paris", "Lyon", "Rome", "Milan", "Madrid", "Barcelona",
+  "Amsterdam", "Vienna", "Zurich", "Stockholm", "Oslo", "Copenhagen", "Dublin", "Warsaw", "Athens", "Istanbul",
+  "Moscow", "Kyiv", "Tokyo", "Seoul", "Beijing", "Mumbai", "Sao Paulo", "Buenos Aires", "Mexico City", "Other"
+];
+
 const HEIGHT_OPTIONS = Array.from({length: 81}, (_, i) => `${i + 140} cm`); 
 const WEIGHT_OPTIONS = Array.from({length: 111}, (_, i) => `${i + 40} kg`); 
 const DAYS = Array.from({length: 31}, (_, i) => `${i + 1}`);
@@ -32,52 +38,81 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 const YEARS = Array.from({length: 70}, (_, i) => `${2006 - i}`);
 
 export const EditProfile = ({ 
-  myId,             // 🚀 REAL ID PASSED FROM APP.TSX
-  myImage,          // 🚀 REAL IMAGE FROM DB
-  setMyImage,       // 🚀 TO UPDATE GLOBAL STATE
+  myId,             
+  myImage,          
+  setMyImage,       
   myName, setMyName, 
   myCity, setMyCity, 
   isPrivate, setIsPrivate, 
   notificationsEnabled, setNotificationsEnabled, 
-  setShowPaywall 
+  setShowPaywall,
+  refreshUserData 
 }: any) => {
   
-  const currentUserId = myId; // 🚀 Uses Real ID instead of hardcoded string
+  const currentUserId = myId; 
 
-  // --- LOCAL STATE FOR PROFILE FIELDS ---
   const [bio, setBio] = useState('');
+  const [hereFor, setHereFor] = useState('Dating');
   const [country, setCountry] = useState('Serbia');
   const [music, setMusic] = useState('Electronic');
-  const [education, setEducation] = useState('College');
+  const [education, setEducation] = useState('High School');
   const [sexuality, setSexuality] = useState('Heterosexual');
   const [bodyType, setBodyType] = useState('Normal');
   const [hairColor, setHairColor] = useState('Brown');
   const [eyeColor, setEyeColor] = useState('Brown');
   const [weight, setWeight] = useState('75 kg');
   const [height, setHeight] = useState('180 cm');
-  
   const [day, setDay] = useState('1');
   const [month, setMonth] = useState('January');
   const [year, setYear] = useState('2000');
 
-  // 🚀 IMAGE STATE (Defaults to Real Image, NOT picsum)
   const [avatarUrl, setAvatarUrl] = useState(myImage || 'https://via.placeholder.com/150');
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
-  // Sync if props update
-  useEffect(() => {
-    if (myImage) setAvatarUrl(myImage);
-  }, [myImage]);
-
-  // --- PICKER MODAL STATE ---
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerData, setPickerData] = useState<string[]>([]);
   const [pickerTitle, setPickerTitle] = useState('');
   const [currentField, setCurrentField] = useState('');
 
-  // 🚀 --- BLOCKED USERS STATE --- 🚀
   const [showBlockedModal, setShowBlockedModal] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchMyProfileData = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/users`);
+        if (res.ok) {
+          const users = await res.json();
+          const myData = users.find((u: any) => u.id === currentUserId);
+          
+          if (myData) {
+            if (myData.bio) setBio(myData.bio);
+            if (myData.here_for) setHereFor(myData.here_for);
+            if (myData.country) setCountry(myData.country);
+            if (myData.music) setMusic(myData.music);
+            if (myData.education) setEducation(myData.education);
+            if (myData.sexuality) setSexuality(myData.sexuality);
+            if (myData.body_type) setBodyType(myData.body_type);
+            if (myData.hair_color) setHairColor(myData.hair_color);
+            if (myData.eye_color) setEyeColor(myData.eye_color);
+            if (myData.weight) setWeight(myData.weight);
+            if (myData.height) setHeight(myData.height);
+            if (myData.dob_day) setDay(myData.dob_day);
+            if (myData.dob_month) setMonth(myData.dob_month);
+            if (myData.dob_year) setYear(myData.dob_year);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch initial profile data:", error);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    fetchMyProfileData();
+    if (myImage) setAvatarUrl(myImage);
+  }, [currentUserId, myImage]);
 
   const openPicker = (title: string, data: string[], field: string) => {
     setPickerTitle(title);
@@ -87,6 +122,7 @@ export const EditProfile = ({
   };
 
   const handleSelect = (item: string) => {
+    if (currentField === 'hereFor') setHereFor(item);
     if (currentField === 'music') setMusic(item);
     if (currentField === 'education') setEducation(item);
     if (currentField === 'sexuality') setSexuality(item);
@@ -103,7 +139,6 @@ export const EditProfile = ({
     setPickerVisible(false);
   };
 
-  // 🚀 PERFECTLY SYNCED WITH DASHBOARD UPLOAD LOGIC AND DB SAVE 🚀
   const handleImageUpload = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
@@ -122,29 +157,21 @@ export const EditProfile = ({
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setIsUploading(true);
       try {
-        console.log("1. Manipulating image: CONVERTING TO WEBP...");
-        // 🚀 FORCE WEBP FORMAT 🚀
         const manipResult = await ImageManipulator.manipulateAsync(
           result.assets[0].uri,
           [{ resize: { width: 500 } }],
           { compress: 0.7, format: ImageManipulator.SaveFormat.WEBP }
         );
 
-        console.log("2. Requesting pre-signed URL from backend...");
         const response = await fetch(`${API_URL}/api/get-upload-url`);
-        
-        if (!response.ok) {
-          throw new Error(`Backend failed with status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`Backend failed with status: ${response.status}`);
 
         const { uploadUrl, publicUrl } = await response.json();
         if (!uploadUrl) throw new Error("Backend did not return an uploadUrl");
 
-        console.log("3. Converting local WEBP file to Blob...");
         const imageResponse = await fetch(manipResult.uri);
         const blob = await imageResponse.blob();
         
-        console.log("4. Sending to Cloudflare as image/webp...");
         const uploadRes = await fetch(uploadUrl, {
           method: 'PUT',
           body: blob,
@@ -152,35 +179,68 @@ export const EditProfile = ({
         });
 
         if (uploadRes.ok) {
-          console.log("5. UPLOAD SUCCESSFUL!");
-          
-          // 🚀 1. Update the Local App View Immediately
           setAvatarUrl(publicUrl);
-          if (setMyImage) setMyImage(publicUrl); // Sync to App.tsx
+          if (setMyImage) setMyImage(publicUrl); 
 
-          // 🚀 2. SAVE IT PERMANENTLY IN POSTGRESQL DATABASE
           await fetch(`${API_URL}/api/users/update-image`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: currentUserId, imageUrl: publicUrl })
           });
 
+          if (refreshUserData) refreshUserData();
+
           Alert.alert("Looking Good!", "Profile picture successfully updated.");
         } else {
-          const errorText = await uploadRes.text();
-          console.error("Cloudflare Error:", errorText);
-          Alert.alert("Upload Rejected", "Cloudflare blocked the file. Check terminal.");
+          Alert.alert("Upload Rejected", "Cloudflare blocked the file.");
         }
       } catch (error: any) {
-        console.error("Upload process crashed:", error.message || error);
-        Alert.alert("Upload Failed", error.message || "Could not update profile picture. Make sure your server is running!");
+        Alert.alert("Upload Failed", error.message || "Could not update profile picture.");
       } finally {
         setIsUploading(false);
       }
     }
   };
 
-  // 🚀 FETCH BLOCKED USERS WHEN THEY OPEN THE MODAL
+  const handleSaveProfile = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/users/update-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUserId,
+          name: myName,
+          bio: bio,
+          hereFor: hereFor,
+          city: myCity,
+          country: country,
+          music: music,
+          education: education,
+          sexuality: sexuality,
+          bodyType: bodyType,
+          hairColor: hairColor,
+          eyeColor: eyeColor,
+          weight: weight,
+          height: height,
+          day: day,
+          month: month,
+          year: year
+        })
+      });
+
+      if (res.ok) {
+        Alert.alert("Saved!", "Your profile has been updated.");
+        if (refreshUserData) {
+          refreshUserData();
+        }
+      } else {
+        Alert.alert("Error", "Failed to update profile in database.");
+      }
+    } catch (e) {
+      Alert.alert("Network Error", "Could not connect to the server.");
+    }
+  };
+
   const openBlockedUsers = async () => {
     setShowBlockedModal(true);
     try {
@@ -194,7 +254,6 @@ export const EditProfile = ({
     }
   };
 
-  // 🚀 UNBLOCK A USER
   const handleUnblock = async (blockedId: string) => {
     try {
       const res = await fetch(`${API_URL}/api/unblock`, {
@@ -211,11 +270,19 @@ export const EditProfile = ({
     }
   };
 
+  if (isLoadingProfile) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text className="mt-4 text-gray-500">Loading your profile data...</Text>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1">
       <ScrollView className="p-5">
         
-        {/* 🚀 PERFECTED PROFILE PICTURE LOGIC 🚀 */}
         <View className="items-center mb-7">
           <TouchableOpacity onPress={handleImageUpload} className="items-center" disabled={isUploading}>
             {isUploading ? (
@@ -237,7 +304,6 @@ export const EditProfile = ({
           </TouchableOpacity>
         </View>
         
-        {/* BASIC INFO */}
         <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Display Name</Text>
         <TextInput className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] text-black" value={myName} onChangeText={setMyName} placeholder="Enter your name" placeholderTextColor="#999" />
         
@@ -253,8 +319,12 @@ export const EditProfile = ({
           style={{ textAlignVertical: 'top' }}
         />
 
-        {/* DATE OF BIRTH */}
-        <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Date of Birth</Text>
+        <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Looking For (Here For)</Text>
+        <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Looking For', HERE_FOR_OPTIONS, 'hereFor')}>
+          <Text className="text-[#333] text-[14px]">{hereFor}</Text>
+        </TouchableOpacity>
+
+        <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Date of Birth (Calculates Age)</Text>
         <View className="flex-row justify-between items-center">
           <TouchableOpacity className="flex-1 h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Day', DAYS, 'day')}>
             <Text className="text-[#333] text-[14px]">{day}</Text>
@@ -267,23 +337,81 @@ export const EditProfile = ({
           </TouchableOpacity>
         </View>
 
-        {/* LOCATION */}
         <View className="flex-row justify-between items-center">
           <View className="flex-1">
             <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Country</Text>
             <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Country', COUNTRY_OPTIONS, 'country')}>
-              <Text className="text-[#333] text-[14px]">{country}</Text>
+              <Text className="text-[#333] text-[14px]" numberOfLines={1}>{country}</Text>
             </TouchableOpacity>
           </View>
           <View className="flex-1">
             <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Town / City</Text>
             <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Town / City', CITY_OPTIONS, 'city')}>
-              <Text className="text-[#333] text-[14px]">{myCity}</Text>
+              <Text className="text-[#333] text-[14px]" numberOfLines={1}>{myCity}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* SETTINGS TOGGLES */}
+        <View className="flex-row justify-between items-center">
+          <View className="flex-1">
+            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Sexuality</Text>
+            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Sexuality', SEXUALITY_OPTIONS, 'sexuality')}>
+              <Text className="text-[#333] text-[14px]">{sexuality}</Text>
+            </TouchableOpacity>
+          </View>
+          <View className="flex-1">
+            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Music</Text>
+            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Music', MUSIC_OPTIONS, 'music')}>
+              <Text className="text-[#333] text-[14px]">{music}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View className="flex-row justify-between items-center">
+          <View className="flex-1">
+            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Body Type</Text>
+            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Body Type', BODY_TYPE_OPTIONS, 'bodyType')}>
+              <Text className="text-[#333] text-[14px]">{bodyType}</Text>
+            </TouchableOpacity>
+          </View>
+          <View className="flex-1">
+            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Education Level</Text>
+            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Education', EDUCATION_OPTIONS, 'education')}>
+              <Text className="text-[#333] text-[14px]" numberOfLines={1}>{education}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View className="flex-row justify-between items-center">
+          <View className="flex-1">
+            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Height</Text>
+            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Height', HEIGHT_OPTIONS, 'height')}>
+              <Text className="text-[#333] text-[14px]">{height}</Text>
+            </TouchableOpacity>
+          </View>
+          <View className="flex-1">
+            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Weight</Text>
+            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Weight', WEIGHT_OPTIONS, 'weight')}>
+              <Text className="text-[#333] text-[14px]">{weight}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View className="flex-row justify-between items-center">
+          <View className="flex-1">
+            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Hair Color</Text>
+            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Hair Color', HAIR_OPTIONS, 'hair')}>
+              <Text className="text-[#333] text-[14px]">{hairColor}</Text>
+            </TouchableOpacity>
+          </View>
+          <View className="flex-1">
+            <Text className="text-[12px] text-[#999] mx-[15px] mt-[10px] mb-[5px]">Eye Color</Text>
+            <TouchableOpacity className="h-[45px] bg-[#FFF] rounded-[10px] px-[15px] border border-[#DDD] mx-[15px] mb-[10px] justify-center" onPress={() => openPicker('Eye Color', EYE_OPTIONS, 'eye')}>
+              <Text className="text-[#333] text-[14px]">{eyeColor}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View className="flex-row justify-between items-center my-4 pb-4 border-b border-[#F5F5F5] px-[15px]">
           <View>
             <Text className="text-[#333] font-bold text-[16px]">Global Notifications</Text>
@@ -292,8 +420,7 @@ export const EditProfile = ({
           <Switch value={notificationsEnabled} onValueChange={setNotificationsEnabled} trackColor={{true: '#4CAF50'}} />
         </View>
 
-        {/* BUTTONS */}
-        <TouchableOpacity className="bg-[#4CAF50] p-[18px] rounded-[150px] items-center m-[15px]" onPress={() => Alert.alert("Dateroot", "Profile Updated Successfully!")}>
+        <TouchableOpacity className="bg-[#4CAF50] p-[18px] rounded-[150px] items-center m-[15px]" onPress={handleSaveProfile}>
           <Text className="text-white font-bold">Save Profile Changes</Text>
         </TouchableOpacity>
 
@@ -314,7 +441,6 @@ export const EditProfile = ({
 
       </ScrollView>
 
-      {/* REUSABLE PICKER MODAL */}
       <Modal visible={pickerVisible} animationType="slide" transparent={true}>
         <View className="flex-1 bg-black/60 justify-end">
           <View className="bg-white rounded-t-[20px] max-h-[50%]">
@@ -337,7 +463,6 @@ export const EditProfile = ({
         </View>
       </Modal>
 
-      {/* 🚀 BLOCKED USERS LIST MODAL 🚀 */}
       <Modal visible={showBlockedModal} animationType="slide" transparent={true}>
         <View className="flex-1 bg-black/60 justify-end">
           <View className="bg-white rounded-t-[24px] h-[70%] p-5 pb-10">
@@ -360,7 +485,6 @@ export const EditProfile = ({
                       <Image source={{uri: item.image}} className="w-[45px] h-[45px] rounded-full mr-3 border border-gray-200" />
                       <Text className="font-bold text-gray-800 text-[16px] flex-shrink" numberOfLines={1}>{item.name}</Text>
                     </View>
-                  
                   </View>
                 )}
               />
