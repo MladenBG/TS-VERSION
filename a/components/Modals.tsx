@@ -103,7 +103,6 @@ export const AllModals = ({
           style: "destructive", 
           onPress: async () => {
             try {
-              // 🚀 FIXED: CORRECT ENDPOINT AND PAYLOAD MATCHES DB 🚀
               await fetch(`${API_URL}/api/report`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -134,7 +133,6 @@ export const AllModals = ({
           style: "destructive", 
           onPress: async () => {
             try {
-              // 🚀 FIXED: HITS /api/block DIRECTLY 🚀
               await fetch(`${API_URL}/api/block`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -252,6 +250,11 @@ export const AllModals = ({
                     friendsList={selectedUser?.friends || []} 
                     isAdmin={isAdmin}
                     isVip={isVip}
+                    onSelectFriend={(f) => {
+                      // 🚀 CLICKS A FRIEND TO VIEW THEIR PROFILE
+                      const fullUser = profiles.find((p: any) => p.id === f.id) || f;
+                      setSelectedUser(fullUser);
+                    }}
                     setShowPaywall={() => {
                       setSelectedUser(null); 
                       if (setShowPaywall) setShowPaywall(true); 
@@ -262,6 +265,7 @@ export const AllModals = ({
                     gifts={selectedUser?.gifts || []} 
                     isAdmin={isAdmin}
                     isVip={isVip}
+                    isPublicView={true} // 🚀 HIDES NAMES FROM PUBLIC
                     setShowPaywall={() => {
                       setSelectedUser(null); 
                       if (setShowPaywall) setShowPaywall(true); 

@@ -244,6 +244,21 @@ export default function App() {
     fetchInitialData();
   }, [myId]);
 
+  // 🚀 FIXED: AUTO-SYNC PROFILE MODAL SO ACCEPTED FRIENDS SHOW INSTANTLY 🚀
+  useEffect(() => {
+    if (selectedUser) {
+      const updatedProfile = profiles.find(p => p.id === selectedUser.id);
+      if (updatedProfile) {
+        const friendsChanged = updatedProfile.friends?.length !== selectedUser.friends?.length;
+        const giftsChanged = updatedProfile.gifts?.length !== selectedUser.gifts?.length;
+        
+        if (friendsChanged || giftsChanged) {
+          setSelectedUser(updatedProfile);
+        }
+      }
+    }
+  }, [profiles]);
+
   // CHAT HISTORY LOADER
   useEffect(() => {
     if (chatUser && myId) {
@@ -704,6 +719,7 @@ export default function App() {
           friend_id: user.id 
         })
       });
+      fetchInitialData(); 
     } catch (error) {
       console.error("Failed to add friend:", error);
     }
@@ -728,24 +744,7 @@ export default function App() {
       });
 
       Alert.alert("Gift Sent!", `You sent a ${giftName} to ${user.name}!`);
-
-      setProfiles(prev => prev.map(p => {
-        if (p.id === user.id) {
-          return {
-            ...p,
-            gifts: [...(p.gifts || []), { gift_name: giftName, sender_id: myId, id: Date.now() }]
-          };
-        }
-        return p;
-      }));
-
-      if (selectedUser && selectedUser.id === user.id) {
-        setSelectedUser((prev: any) => ({
-          ...prev,
-          gifts: [...(prev.gifts || []), { gift_name: giftName, sender_id: myId, id: Date.now() }]
-        }));
-      }
-
+      fetchInitialData(); // Re-sync the database
     } catch (error) {
       console.error("Failed to send gift:", error);
     }
@@ -766,11 +765,12 @@ export default function App() {
   };
 
   // =========================================================================
-  // CALCULATE CURRENT USER REQUESTS
+  // CALCULATE CURRENT USER REQUESTS & GIFTS
   // =========================================================================
   const myProfileData = profiles.find(p => p.id === myId);
   const receivedRequests = myProfileData?.received_requests || [];
   const sentRequests = myProfileData?.sent_requests || [];
+  const myGifts = myProfileData?.gifts || []; // 🚀 GRABS DB GIFTS TO FIX USER DASHBOARD
 
   // =========================================================================
   // RENDER MAIN APPLICATION UI
@@ -1166,7 +1166,19 @@ export default function App() {
                               isAdmin={isAdmin} 
                               setShowPaywall={setShowPaywall} 
                               openEditProfile={() => setShowEditProfile(true)}
-                              receivedGifts={receivedGifts}
+                              
+                              // 🚀 PASSED THE PROPER USER GIFTS TO DASHBOARD 🚀
+                              receivedGifts={myGifts}
+                              
+                              // 🚀 NEW PROPS ADDED SO TYPESCRIPT DOES NOT FAIL 🚀
+                              onViewPublicProfile={() => {
+                                const myProfile = profiles.find(p => p.id === myId);
+                                if(myProfile) handleProfileView(myProfile);
+                              }}
+                              onSelectUser={(u: any) => {
+                                const fullUser = profiles.find(p => p.id === u.id) || u;
+                                handleProfileView(fullUser);
+                              }}
                             />
                           </View>
                         )}
@@ -1195,6 +1207,7 @@ export default function App() {
                     ))}
                   </View>
 
+                  {/* 🚀 MODALS INSTANCE 🚀 */}
                   <AllModals 
                     showFilters={showFilters} 
                     setShowFilters={setShowFilters} 
@@ -1272,7 +1285,7 @@ export default function App() {
                     </SafeAreaView>
                   </Modal>
 
-                  {/* 🚀 NEW: FRIEND REQUESTS MODAL OVERLAY 🚀 */}
+                  {/* 🚀 FRIEND REQUESTS MODAL OVERLAY 🚀 */}
                   <Modal visible={showFriendRequests} animationType="slide">
                     <SafeAreaView className="flex-1 bg-white">
                       <View className="flex-row items-center justify-between p-5 border-b border-gray-200">

@@ -7,15 +7,14 @@ import { ImageGallery } from './ImageGallery';
 import { GiftsReceived } from './GiftsReceived';
 import { FriendRequests } from './FriendRequests'; 
 
-// 🚀 FIXED: POINTING TO PORT 3001 TO MATCH BACKEND
 const API_URL = "http://10.0.2.2:3001"; 
 
 interface UserDashboardProps {
   myId: string;
   myImage: string;
   setMyImage: (url: string) => void;
-  myGalleryImages: string[];           // 👈 MAKE SURE THIS IS IN UserDashboard.tsx
-  setMyGalleryImages: React.Dispatch<React.SetStateAction<string[]>>; // 👈 AND THIS
+  myGalleryImages: string[];           
+  setMyGalleryImages: React.Dispatch<React.SetStateAction<string[]>>; 
   myName: string;
   myCity: string;
   isVip: boolean;
@@ -23,6 +22,8 @@ interface UserDashboardProps {
   setShowPaywall: (show: boolean) => void;
   openEditProfile: () => void;
   receivedGifts: any[];
+  onViewPublicProfile: () => void; // 🚀 ADDED TO VIEW OWN PUBLIC PROFILE
+  onSelectUser: (user: any) => void; // 🚀 ADDED FOR FRIEND CLICKS
 }
 
 export const UserDashboard = ({ 
@@ -35,18 +36,18 @@ export const UserDashboard = ({
   isAdmin, 
   setShowPaywall, 
   openEditProfile, 
-  receivedGifts 
+  receivedGifts,
+  onViewPublicProfile,
+  onSelectUser
 }: UserDashboardProps) => {
 
   const [profilePic, setProfilePic] = useState<string | null>(myImage || null);
   const [isUploadingPic, setIsUploadingPic] = useState(false);
 
-  // Sync if props update (e.g., from App.tsx or database reload)
   useEffect(() => {
     if (myImage) setProfilePic(myImage);
   }, [myImage]);
 
-  // 🚀 REAL DATA STATES - NO HARDCODED DUMMY FRIENDS 🚀
   const [myFriends, setMyFriends] = useState<any[]>([]);
   const [receivedRequests, setReceivedRequests] = useState<any[]>([]);
   const [sentRequests, setSentRequests] = useState<any[]>([]);
@@ -58,7 +59,6 @@ export const UserDashboard = ({
   const handleDeclineRequest = (id: string) => setReceivedRequests(prev => prev.filter(req => req.id !== id));
   const handleCancelRequest = (id: string) => setSentRequests(prev => prev.filter(req => req.id !== id));
 
-  // Default to empty array if no gifts from database
   const displayGifts = receivedGifts.length > 0 ? receivedGifts : [];
 
   const handleUploadProfilePic = async () => {
@@ -79,15 +79,12 @@ export const UserDashboard = ({
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setIsUploadingPic(true);
       try {
-        console.log("1. Starting image manipulation...");
-        // 🚀 FORCE WEBP FORMAT FOR LIGHTER SIZE 🚀
         const manipResult = await ImageManipulator.manipulateAsync(
           result.assets[0].uri,
           [{ resize: { width: 500 } }], 
           { compress: 0.7, format: ImageManipulator.SaveFormat.WEBP } 
         );
 
-        console.log("2. Requesting pre-signed URL from backend...");
         const response = await fetch(`${API_URL}/api/get-upload-url`);
         
         if (!response.ok) {
@@ -99,14 +96,10 @@ export const UserDashboard = ({
         const publicUrl = data.publicUrl;
         
         if (!uploadUrl) throw new Error("Backend did not return an uploadUrl");
-        console.log("3. Got URL from backend! Converting image to binary Blob...");
 
         const imageResponse = await fetch(manipResult.uri);
         const blob = await imageResponse.blob();
         
-        console.log(`4. Blob created successfully. Size: ${blob.size} bytes. Uploading to Cloudflare...`);
-
-        // 🚀 SENDING AS image/webp TO CLOUDFLARE 🚀
         const uploadRes = await fetch(uploadUrl, {
           method: 'PUT',
           body: blob,
@@ -116,13 +109,9 @@ export const UserDashboard = ({
         });
 
         if (uploadRes.ok) {
-          console.log("5. UPLOAD SUCCESSFUL!");
-          
-          // 🚀 1. Update the Local App View Immediately
           setProfilePic(publicUrl); 
-          if (setMyImage) setMyImage(publicUrl); // Sync back to root App state
+          if (setMyImage) setMyImage(publicUrl); 
 
-          // 🚀 2. SAVE IT PERMANENTLY IN POSTGRESQL DATABASE
           await fetch(`${API_URL}/api/users/update-image`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -131,12 +120,9 @@ export const UserDashboard = ({
 
           Alert.alert("Looking Good!", "Profile picture saved to database.");
         } else {
-          const errorText = await uploadRes.text();
-          console.error("❌ CLOUDFLARE REJECTED THE UPLOAD. Reason:", errorText);
           Alert.alert("Upload Rejected", "Cloudflare blocked the file.");
         }
       } catch (error: any) {
-        console.error("❌ UPLOAD CRASHED:", error.message || error);
         Alert.alert("Upload Failed", error.message || "Could not connect to server.");
       } finally {
         setIsUploadingPic(false);
@@ -191,6 +177,15 @@ export const UserDashboard = ({
           <Text className="font-bold text-gray-700">Edit Profile Details</Text>
         </TouchableOpacity>
 
+        {/* 🚀 NEW: VIEW PUBLIC PROFILE BUTTON */}
+        <TouchableOpacity 
+          onPress={onViewPublicProfile}
+          className="mt-3 bg-blue-50 border border-blue-200 py-3 rounded-xl items-center flex-row justify-center"
+        >
+          <Text className="text-lg mr-2">👁️</Text>
+          <Text className="font-bold text-blue-700">View Public Profile</Text>
+        </TouchableOpacity>
+
         {!isVip && (
           <TouchableOpacity 
             onPress={() => setShowPaywall(true)}
@@ -204,7 +199,6 @@ export const UserDashboard = ({
 
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         
-        {/* 🚀 IMAGE GALLERY - CONNECTED TO REAL USER ID 🚀 */}
         <ImageGallery initialImages={[]} isPublicView={false} userId={myId} />
         
         <FriendRequests 
@@ -222,6 +216,7 @@ export const UserDashboard = ({
           friendsList={myFriends} 
           isEditable={true} 
           onRemoveFriend={handleRemoveFriend} 
+          onSelectFriend={onSelectUser} // 🚀 PASSED CLICK LOGIC
           isAdmin={isAdmin}
           isVip={isVip}
           setShowPaywall={setShowPaywall}
@@ -231,6 +226,7 @@ export const UserDashboard = ({
           gifts={displayGifts} 
           isAdmin={isAdmin}
           isVip={isVip}
+          isPublicView={false} // 🚀 USER SEES NAMES OF SENDER
           setShowPaywall={setShowPaywall}
         />
       </ScrollView>
