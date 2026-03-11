@@ -9,7 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 // =========================================================================
 // 🚨 THE MASTER URL SWITCH 🚨
 // =========================================================================
-const API_URL = "http://10.0.2.2:3000"; 
+const API_URL = "http://10.0.2.2:3001";
 // =========================================================================
 
 // Premium Rose Theme
@@ -34,7 +34,7 @@ export const LoginScreen = ({ navigation }: any) => {
     }
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
+ const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.toLowerCase(), password })

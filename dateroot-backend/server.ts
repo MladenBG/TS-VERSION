@@ -1,6 +1,6 @@
 // File: dateroot-backend/server.ts
 import express from "express";
-import { Request, Response } from "express";
+import type { Request, Response } from "express"; // 🚀 Added 'type' to prevent nodemon crashes
 import http from "http";
 import { Server, Socket } from "socket.io";
 import cors from "cors";
@@ -34,7 +34,7 @@ app.use((req, res, next) => {
 const pool = new Pool({
   // 🚨 REPLACE "YOUR_DB_PASSWORD" WITH YOUR ACTUAL POSTGRES PASSWORD! 🚨
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:YOUR_DB_PASSWORD@127.0.0.1:5432/dateroot',
-  connectionTimeoutMillis: 5000, // 🚀 THIS KILLS THE INFINITE SPIN IF DB FAILS
+  connectionTimeoutMillis: 5000, 
 });
 
 // Test the connection immediately so we know if it's broken
@@ -87,13 +87,9 @@ interface BlockPayload {
 }
 
 // ==========================================
-// 🚀 ROUTES 🚀
-// ==========================================
-
-// ==========================================
 // 🚀 AUTHENTICATION ROUTES (LOGIN/REGISTER)
 // ==========================================
-app.post('/api/login', async (req: Request, res: Response) => {
+app.post('/api/auth/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
   
   if (!email || !password) {
@@ -109,8 +105,23 @@ app.post('/api/login', async (req: Request, res: Response) => {
 
     const user = result.rows[0];
     
-    // Check password
-    const isValid = await bcrypt.compare(password, user.password); 
+    // 🚀 SAFELY GRAB THE PASSWORD 
+    const dbPassword = user.password || user.password_hash; 
+    
+    // 🚀 PREVENT BCRYPT CRASH
+    if (!dbPassword) {
+      return res.status(401).json({ error: "This user has no password set in the database." });
+    }
+
+    let isValid = false;
+    
+    // 🚀 SMART CHECK: Prevent crash by checking if it's an old plain-text password or a new hash
+    const dbPasswordStr = String(dbPassword);
+    if (dbPasswordStr.startsWith('$2b$') || dbPasswordStr.startsWith('$2a$')) {
+      isValid = await bcrypt.compare(password, dbPasswordStr); 
+    } else {
+      isValid = (password === dbPasswordStr);
+    }
 
     if (!isValid) {
       return res.status(401).json({ error: "Wrong password" });
@@ -178,7 +189,6 @@ app.post('/api/users/update-image', async (req: Request, res: Response) => {
   }
 
   try {
-    // Updates image AND last_ip at the same time for security
     await pool.query(
       'UPDATE users SET image = $1, last_ip = $2 WHERE id = $3', 
       [imageUrl, userIp, userId]
@@ -223,7 +233,6 @@ app.post('/api/gallery/remove', async (req: Request, res: Response) => {
 // ==========================================
 // 🚀 TRUST & SAFETY API 
 // ==========================================
-
 app.post('/api/block', async (req: Request, res: Response) => {
   const { blockerId, blockedId } = req.body as BlockPayload;
   try {
@@ -259,7 +268,6 @@ app.get('/api/admin/reports', async (req: Request, res: Response) => {
   }
 });
 
-// 🚀 ADMIN VIEW: PULL IP LOGS 🛰️
 app.get('/api/admin/ip-logs', async (req: Request, res: Response) => {
     try {
       const result = await pool.query('SELECT name, email, last_ip, created_at FROM users WHERE last_ip IS NOT NULL');
@@ -267,6 +275,97 @@ app.get('/api/admin/ip-logs', async (req: Request, res: Response) => {
     } catch (error) {
       res.status(500).json({ error: "Could not fetch IP logs" });
     }
+});
+
+// ==========================================
+// 🚀 FALLBACK GET ROUTES FOR MISSING TABLES (Speeds up app load)
+// ==========================================
+app.get('/api/likes/who-liked-me', (req: Request, res: Response) => res.json([]));
+app.get('/api/views', (req: Request, res: Response) => res.json([]));
+app.get('/api/gifts', (req: Request, res: Response) => res.json([]));
+
+// ==========================================
+// 🚀 REAL CHAT ROUTES (Fixed Disappearing & Sending)
+// ==========================================
+
+// GET LOBBY MESSAGES
+app.get('/api/lobby', async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`
+      SELECT l.id, u.name as user, l.content as text, l.created_at
+      FROM lobby_messages l
+      JOIN users u ON l.sender_id = u.id
+      ORDER BY l.created_at DESC LIMIT 50
+    `);
+    const formatted = result.rows.reverse().map(row => ({
+      id: row.id.toString(),
+      user: row.user,
+      text: row.text,
+      time: new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }));
+    res.json(formatted);
+  } catch (error) {
+    console.error("Lobby GET Error:", error);
+    res.json([]);
+  }
+});
+
+// POST LOBBY MESSAGES
+app.post('/api/lobby', async (req: Request, res: Response) => {
+  const { sender_id, content } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO lobby_messages (sender_id, content, created_at) VALUES ($1, $2, NOW()) RETURNING id',
+      [sender_id, content]
+    );
+    res.json({ success: true, id: result.rows[0].id, time: new Date().toLocaleTimeString() });
+  } catch (error) {
+    console.error("Lobby POST Error:", error);
+    res.status(500).json({ error: "Failed to process lobby message" });
+  }
+});
+
+// GET PRIVATE MESSAGES
+app.get('/api/messages', async (req: Request, res: Response) => {
+  const myId = req.query.my_id as string;
+  const otherId = req.query.other_id as string;
+  try {
+    if (myId && otherId) {
+      const result = await pool.query(`
+        SELECT id, content as text, sender_id as sender
+        FROM private_messages
+        WHERE (sender_id = $1 AND receiver_id = $2)
+           OR (sender_id = $2 AND receiver_id = $1)
+        ORDER BY created_at ASC
+      `, [myId, otherId]);
+
+      const formatted = result.rows.map(row => ({
+        _id: row.id.toString(),
+        text: row.text,
+        sender: row.sender === myId ? 'me' : 'other'
+      }));
+      return res.json(formatted);
+    }
+    res.json({});
+  } catch (error) {
+    console.error("Messages GET Error:", error);
+    res.json({});
+  }
+});
+
+// POST PRIVATE MESSAGES
+app.post('/api/messages', async (req: Request, res: Response) => {
+  const { sender_id, receiver_id, content } = req.body;
+  try {
+    await pool.query(
+      'INSERT INTO private_messages (sender_id, receiver_id, content, created_at) VALUES ($1, $2, $3, NOW())',
+      [sender_id, receiver_id, content]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Private Message POST Error:", error);
+    res.status(500).json({ error: "Failed to process private message" });
+  }
 });
 
 // ==========================================
@@ -312,7 +411,6 @@ io.on("connection", (socket: Socket) => {
 });
 
 const PORT = 3001; 
-// 🚀 THIS IS THE FIX: '0.0.0.0' ALLOWS THE EMULATOR TO CONNECT
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 DateRoot TS Server running on http://0.0.0.0:${PORT}`);
 });

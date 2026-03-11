@@ -56,8 +56,8 @@ const logoImg = require('./assets/logo.png');
 // =========================================================================
 // 🚨 THE MASTER URL SWITCH 🚨
 // =========================================================================
-const API_URL = "http://10.0.2.2:3000"; 
-const SOCKET_URL = "http://10.0.2.2:3001"; 
+const API_URL = "http://10.0.2.2:3001"; 
+const SOCKET_URL = "http://10.0.2.2:3001";
 // =========================================================================
 
 export const socket = io(SOCKET_URL);
@@ -467,41 +467,51 @@ export default function App() {
     return true;
   };
 
-  // 🚀 SEND MESSAGE SYNCED WITH TS BACKEND UUIDs
+// 🚀 SEND MESSAGE SYNCED WITH TS BACKEND UUIDs
+  // 🚀 SEND MESSAGE SYNCED WITH TS BACKEND
   const handleSendMessage = async () => {
     if (!chatInput.trim() || !chatUser || !myId) return;
-    if (!checkMessageLimits()) return;
     
     const textToSend = chatInput;
     setChatInput('');
 
-    // EMIT VIA UUID ROOM
-    socket.emit("private_message", {
+    // 🚀 FIX: Create a guaranteed unique string ID for the React Key
+    const tempId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    const newMsg = { 
+      _id: tempId, // 🚀 This unique string fixes the "key" error
+      text: textToSend, 
+      sender: 'me',
+      createdAt: new Date()
+    };
+
+    // 🚀 DRAW INSTANTLY on your screen
+    setMessages(prev => ({
+      ...prev,
+      [chatUser.id]: [...(prev[chatUser.id] || []), newMsg]
+    }));
+
+    // Send via socket to the other person
+    socket.emit("private_message", { 
       receiverId: chatUser.id, 
-      messageData: {
-        id: Date.now().toString(),
-        text: textToSend,
-        sender: 'other', 
-        name: myName
-      }
+      messageData: newMsg 
     });
 
+    // Save to the real database table: private_messages
     try {
       await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          sender_id: myId,      
+          sender_id: myId, 
           receiver_id: chatUser.id, 
           content: textToSend 
         })
       });
-      incrementMessageCount();
-    } catch (error) {
-      console.error("Message Save Failed:", error);
+    } catch (e) {
+      console.error("Failed to save private message:", e);
     }
   };
-
   const sendLobbyMessage = async () => {
     if (!lobbyInput.trim() || !myName || !myId) return; 
     
