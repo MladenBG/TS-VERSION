@@ -360,12 +360,7 @@ export const EditProfile = ({
                       <Image source={{uri: item.image}} className="w-[45px] h-[45px] rounded-full mr-3 border border-gray-200" />
                       <Text className="font-bold text-gray-800 text-[16px] flex-shrink" numberOfLines={1}>{item.name}</Text>
                     </View>
-                    <TouchableOpacity 
-                      onPress={() => handleUnblock(item.id)}
-                      className="bg-gray-200 py-2.5 px-5 rounded-full"
-                    >
-                      <Text className="font-bold text-gray-700 text-xs">Unblock</Text>
-                    </TouchableOpacity>
+                  
                   </View>
                 )}
               />

@@ -14,8 +14,8 @@ interface UserDashboardProps {
   myId: string;
   myImage: string;
   setMyImage: (url: string) => void;
-  myGalleryImages: string[];           // 🚀 FIXED: PROPS DEFINED
-  setMyGalleryImages: React.Dispatch<React.SetStateAction<string[]>>; // 🚀 FIXED: PROPS DEFINED
+  myGalleryImages: string[];           // 👈 MAKE SURE THIS IS IN UserDashboard.tsx
+  setMyGalleryImages: React.Dispatch<React.SetStateAction<string[]>>; // 👈 AND THIS
   myName: string;
   myCity: string;
   isVip: boolean;
@@ -29,8 +29,6 @@ export const UserDashboard = ({
   myId,
   myImage,
   setMyImage,
-  myGalleryImages,     // 🚀 DESTRUCTURED
-  setMyGalleryImages,  // 🚀 DESTRUCTURED
   myName, 
   myCity, 
   isVip, 
@@ -206,13 +204,8 @@ export const UserDashboard = ({
 
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         
-        {/* 🚀 IMAGE GALLERY - FIXED: CONNECTED TO REAL STATE 🚀 */}
-        <ImageGallery 
-          initialImages={myGalleryImages} 
-          setMyGalleryImages={setMyGalleryImages}
-          isPublicView={false} 
-          userId={myId} 
-        />
+        {/* 🚀 IMAGE GALLERY - CONNECTED TO REAL USER ID 🚀 */}
+        <ImageGallery initialImages={[]} isPublicView={false} userId={myId} />
         
         <FriendRequests 
           receivedRequests={receivedRequests}

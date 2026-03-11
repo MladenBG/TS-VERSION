@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { TextInput, Button, Text, SegmentedButtons, Checkbox, Provider as PaperProvider, MD3LightTheme, HelperText } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
 
-const API_URL = "http://10.0.2.2:3000/api";
+const API_URL = "http://10.0.2.2:3001/api";
 
 const theme = {
   ...MD3LightTheme,

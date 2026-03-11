@@ -237,25 +237,24 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages,
               {adminFiltered.map((u: any, index: number) => (
                 <View key={u.id} className={`flex-row py-4 items-center ${index !== adminFiltered.length - 1 ? 'border-b border-gray-100' : ''}`}>
                   <Image source={{uri: u.image}} className="w-[50px] h-[50px] rounded-full mr-4 bg-gray-200" />
-                  <View className="flex-1 pr-2">
+                  <View className="flex-1">
                     <Text className={`font-black text-[16px] ${u.isBanned ? 'text-red-500 line-through' : 'text-gray-900'}`}>{u.name}, {u.age}</Text>
                     <Text className="text-[12px] font-semibold text-gray-500 mt-0.5">{u.town} • {u.gender}</Text>
                     <Text className="text-[10px] font-mono text-gray-400 mt-1">ID: {u.id}</Text>
                   </View>
                   
-                  {/* 🚀 OVDE JE POPRAVLJENO: Fiksna sirina, nema View omotaca, jasne margine */}
-                  <View className="flex-col w-[100px]">
+                  <View className="flex-col">
                     {u.isBanned ? (
                       <>
                         <TouchableOpacity 
                           onPress={() => handleUnbanUser(u)} 
-                          className="bg-green-500 py-2 rounded-md shadow-sm mb-2 items-center"
+                          className="bg-green-500 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
                         >
                           <Text className="text-white text-[10px] font-black tracking-wider">UNBAN</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
                           onPress={() => handleUnblockIpUser(u)} 
-                          className="bg-green-700 py-2 rounded-md shadow-sm mb-2 items-center"
+                          className="bg-green-700 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
                         >
                           <Text className="text-white text-[10px] font-black tracking-wider">UNBLOCK IP</Text>
                         </TouchableOpacity>
@@ -264,22 +263,23 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages,
                       <>
                         <TouchableOpacity 
                           onPress={() => handleBanUser(u)} 
-                          className="bg-orange-500 py-2 rounded-md shadow-sm mb-2 items-center"
+                          className="bg-orange-500 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
                         >
                           <Text className="text-white text-[10px] font-black tracking-wider">BAN</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
                           onPress={() => handleIpBlockUser(u)} 
-                          className="bg-gray-900 py-2 rounded-md shadow-sm mb-2 items-center"
+                          className="bg-gray-900 py-1.5 px-3 rounded-md shadow-sm elevation-1 mb-1 items-center"
                         >
                           <Text className="text-white text-[10px] font-black tracking-wider">IP BLOCK</Text>
                         </TouchableOpacity>
                       </>
                     )}
                     
+                    {/* 🚀 THE RED DELETE BUTTON */}
                     <TouchableOpacity 
                       onPress={() => handleDeleteUser(u)} 
-                      className="bg-red-600 py-2 rounded-md shadow-sm items-center"
+                      className="bg-red-600 py-1.5 px-3 rounded-md shadow-sm elevation-1 items-center"
                     >
                       <Text className="text-white text-[10px] font-black tracking-wider">DELETE</Text>
                     </TouchableOpacity>
