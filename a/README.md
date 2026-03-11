@@ -473,6 +473,48 @@ AND CHANGE APP.TSX ADMIN DASHBOARD LOGIN AND SIGN IN COMPONENTS URL IN CONST TO 
 
 
 
+
+
+
+
+
+DUMP DATABASE  FOR SAVING DATABASE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+pg_dump -U postgres -d dateroot > full_backup.sql
+
+
+
+
+
+pg_dump -U postgres -d dateroot > datedb_fixed_backup.sql
+
+or this
+
+pg_dump -U postgres -d datedb -f full_backup.sql
+
+
+
+
+
+
+
+
+FOR REVERSING TO PREVIOUS DATABASE!!!!!!!!!!!!!READ THIS COUTION!!!!!!!!
+
+psql -U postgres -d dateroot < full_backup.sql
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 REDIS INSTALING
 
 

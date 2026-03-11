@@ -5,13 +5,19 @@ import * as ImageManipulator from 'expo-image-manipulator';
 
 interface ImageGalleryProps {
   initialImages?: string[];
+  setMyGalleryImages?: React.Dispatch<React.SetStateAction<string[]>>; // 🚀 CRITICAL FOR SYNC
   isPublicView?: boolean;
-  userId?: string; // 🚀 REQUIRED TO SAVE TO DB
+  userId?: string; 
 }
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-export const ImageGallery = ({ initialImages = [], isPublicView = false, userId }: ImageGalleryProps) => {
+export const ImageGallery = ({ 
+  initialImages = [], 
+  setMyGalleryImages, 
+  isPublicView = false, 
+  userId 
+}: ImageGalleryProps) => {
   const [images, setImages] = useState<string[]>(initialImages);
   const [currentPage, setCurrentPage] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
@@ -19,11 +25,9 @@ export const ImageGallery = ({ initialImages = [], isPublicView = false, userId 
   // State for Fullscreen Viewer
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  // Sync state if initialImages prop updates from Parent
+  // Sync internal state with prop from Parent (App.tsx -> UserDashboard -> Gallery)
   useEffect(() => {
-    if (initialImages.length > 0) {
-      setImages(initialImages);
-    }
+    setImages(initialImages);
   }, [initialImages]);
   
   // 🚀 PAGINATION SET FOR 6 MAX IMAGES
@@ -85,10 +89,6 @@ export const ImageGallery = ({ initialImages = [], isPublicView = false, userId 
         if (uploadRes.ok) {
           console.log("4. SUCCESS! Saving to Database...");
           
-          // Update local view
-          const newImages = [publicUrl, ...images];
-          setImages(newImages);
-          
           // 🚀 PERSIST TO DATABASE 🚀
           if (userId) {
             await fetch('http://10.0.2.2:3001/api/gallery/add', {
@@ -96,6 +96,13 @@ export const ImageGallery = ({ initialImages = [], isPublicView = false, userId 
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ userId: userId, imageUrl: publicUrl })
             });
+          }
+
+          // 🚀 UPDATE LOCAL & ROOT STATE IMMEDIATELY 🚀
+          const newImages = [...images, publicUrl];
+          setImages(newImages);
+          if (setMyGalleryImages) {
+            setMyGalleryImages(newImages);
           }
 
           Alert.alert("Saved!", "Photo added to your gallery permanently.");
@@ -115,7 +122,7 @@ export const ImageGallery = ({ initialImages = [], isPublicView = false, userId 
     setSelectedImage(imgUri);
   };
 
-  const handleImageLongPress = (index: number) => {
+  const handleImageLongPress = (indexInCurrentPage: number) => {
     if (isPublicView) return;
 
     Alert.alert(
@@ -127,12 +134,13 @@ export const ImageGallery = ({ initialImages = [], isPublicView = false, userId 
           text: "Delete", 
           style: "destructive", 
           onPress: async () => {
-            const actualIndex = startIndex + index;
+            const actualIndex = startIndex + (isPublicView ? indexInCurrentPage : (currentPage === 1 ? indexInCurrentPage - 1 : indexInCurrentPage));
+            
+            // Safety check for index
+            if (actualIndex < 0 || actualIndex >= images.length) return;
+
             const imgToRemove = images[actualIndex];
             
-            // Remove locally
-            setImages(prev => prev.filter((_, i) => i !== actualIndex));
-
             // 🚀 REMOVE FROM DATABASE 🚀
             if (userId) {
               try {
@@ -141,8 +149,17 @@ export const ImageGallery = ({ initialImages = [], isPublicView = false, userId 
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ userId: userId, imageUrl: imgToRemove })
                 });
+
+                // Update local and parent state
+                const updatedImages = images.filter((_, i) => i !== actualIndex);
+                setImages(updatedImages);
+                if (setMyGalleryImages) {
+                  setMyGalleryImages(updatedImages);
+                }
+                Alert.alert("Deleted", "Photo removed from your profile.");
               } catch (e) {
                 console.error("DB Delete Error", e);
+                Alert.alert("Error", "Failed to delete from database.");
               }
             }
           } 
@@ -177,7 +194,7 @@ export const ImageGallery = ({ initialImages = [], isPublicView = false, userId 
 
         {currentImages.map((imgUri, index) => (
           <TouchableOpacity 
-            key={index}
+            key={`${imgUri}-${index}`}
             onPress={() => handleImagePress(imgUri)} 
             onLongPress={() => handleImageLongPress(index)} 
             className="w-[31%] aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-sm"
@@ -191,7 +208,7 @@ export const ImageGallery = ({ initialImages = [], isPublicView = false, userId 
         )}
       </View>
 
-      {/* Pagination */}
+      {/* Pagination Controls */}
       {images.length > (isPublicView ? ITEMS_PER_PAGE : ITEMS_PER_PAGE - 1) && (
         <View className="flex-row justify-between items-center mt-2 border-t border-gray-100 pt-3">
           <TouchableOpacity 
@@ -212,7 +229,7 @@ export const ImageGallery = ({ initialImages = [], isPublicView = false, userId 
         </View>
       )}
 
-      {/* 🚀 FIXED MODAL: NO MORE BLACK RECTANGLES 🚀 */}
+      {/* 🚀 FULLSCREEN VIEWER MODAL 🚀 */}
       <Modal visible={!!selectedImage} transparent={true} animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity 

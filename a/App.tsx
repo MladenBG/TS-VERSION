@@ -81,6 +81,7 @@ export default function App() {
   const [totalFreeMessages, setTotalFreeMessages] = useState(0);
   const [lastResetDate, setLastResetDate] = useState(Date.now());
   const [myImage, setMyImage] = useState("");  
+  const [myGalleryImages, setMyGalleryImages] = useState<string[]>([]); // 🚀 PERSISTENT GALLERY STATE
   const [profiles, setProfiles] = useState<any[]>([]);
   const [likedMeProfiles, setLikedMeProfiles] = useState<any[]>([]);
   const [viewedMeProfiles, setViewedMeProfiles] = useState<any[]>([]);
@@ -111,8 +112,7 @@ export default function App() {
   const [isPrivate, setIsPrivate] = useState(false); 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
-  // 🚀 CORRECTED: PROFILE LIST SYNC ENGINE 🚀
-  // This watcher forces the search list to update your card when you change your picture
+  // 🚀 PROFILE LIST SYNC ENGINE 🚀
   useEffect(() => {
     if (myId && myImage) {
       setProfiles(prevProfiles => 
@@ -170,8 +170,6 @@ export default function App() {
         Purchases.setLogLevel(LOG_LEVEL.DEBUG);
         if (Platform.OS === 'android') {
           // Purchases.configure({ apiKey: "YOUR_REVENUECAT_GOOGLE_API_KEY" });
-        } else if (Platform.OS === 'ios') {
-          // Purchases.configure({ apiKey: "YOUR_REVENUECAT_APPLE_API_KEY" });
         }
       } catch (e) {
         console.error("Error initializing RevenueCat", e);
@@ -180,7 +178,7 @@ export default function App() {
     setupRevenueCat();
   }, []);
 
-  // 🚀 LOAD USERS, LOBBY HISTORY, AND INBOX HISTORY ON START/REFRESH
+  // 🚀 LOAD USERS, LOBBY, AND DATA FROM TS BACKEND 🚀
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -203,7 +201,9 @@ export default function App() {
             isBanned: false,
             friends: u.friends || [],
             gifts: u.gifts || [],
-            gallery: u.gallery || []
+            gallery: u.gallery || [], 
+            joinedAt: u.created_at, 
+            lastIp: u.last_ip 
           }));
           setProfiles(formattedProfiles);
         }
@@ -242,7 +242,7 @@ export default function App() {
     fetchInitialData();
   }, [myId]);
 
-  // 🚀 LOAD SPECIFIC CHAT HISTORY WHEN A USER IS CLICKED
+  // 🚀 CHAT HISTORY LOADER
   useEffect(() => {
     if (chatUser && myId) {
       const fetchChatHistory = async () => {
@@ -298,12 +298,14 @@ export default function App() {
         })
       ).start();
     }
-  }, [discoveryMode, radarAnim]);
+  }, [discoveryMode]);
 
-  // 🚀 SOCKET INITIALIZATION & LISTENERS
+  // 🚀 SOCKET INITIALIZATION & UUID REGISTRATION 🚀
   useEffect(() => {
-    if (myName) {
-      socket.emit("register_user", myName); 
+    if (myId && myName) {
+      // REGISTER WITH UUID OBJECT FOR TS BACKEND
+      socket.emit("register_user", { id: myId, name: myName }); 
+      console.log("Registered on Socket with ID:", myId);
     }
 
     const handleReceiveLobby = (msg: any) => {
@@ -351,7 +353,7 @@ export default function App() {
       socket.off("incoming_call", handleIncomingCall); 
       Vibration.cancel();
     };
-  }, [myName]);
+  }, [myId, myName]);
 
   const filteredProfiles = useMemo(() => {
     return profiles.filter(p => {
@@ -453,7 +455,7 @@ export default function App() {
     if (totalFreeMessages >= 2) {
       Alert.alert(
         "Out of Free Messages! 🛑", 
-        "You have used your 2 free messages across the app. Subscribe to VIP to chat unlimited!",
+        "You have used your 2 free messages. Subscribe to VIP to chat unlimited!",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Unlock VIP", onPress: () => setShowPaywall(true) } 
@@ -465,48 +467,38 @@ export default function App() {
     return true;
   };
 
+  // 🚀 SEND MESSAGE SYNCED WITH TS BACKEND UUIDs
   const handleSendMessage = async () => {
     if (!chatInput.trim() || !chatUser || !myId) return;
-    
     if (!checkMessageLimits()) return;
     
     const textToSend = chatInput;
     setChatInput('');
 
-    const tempId = 'temp_' + Date.now().toString();
-    const tempMsg = { 
-      id: tempId, 
-      text: textToSend, 
-      sender: 'me',
-      name: myName
-    };
-    
-    setMessages(prev => ({ 
-      ...prev, 
-      [chatUser.id]: [...(prev[chatUser.id] || []), tempMsg] 
-    }));
-    
+    // EMIT VIA UUID ROOM
+    socket.emit("private_message", {
+      receiverId: chatUser.id, 
+      messageData: {
+        id: Date.now().toString(),
+        text: textToSend,
+        sender: 'other', 
+        name: myName
+      }
+    });
+
     try {
-      const res = await fetch(`${API_URL}/api/messages`, {
+      await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sender_id: myId, receiver_id: chatUser.id, content: textToSend })
+        body: JSON.stringify({ 
+          sender_id: myId,      
+          receiver_id: chatUser.id, 
+          content: textToSend 
+        })
       });
-
-      const realDbMessage = await res.json();
-
-      if (realDbMessage && realDbMessage.id) {
-        setMessages(prev => {
-          const updatedChat = (prev[chatUser.id] || []).map(m => 
-            m.id === tempId ? { ...m, id: realDbMessage.id } : m
-          );
-          return { ...prev, [chatUser.id]: updatedChat };
-        });
-      }
-      incrementMessageCount(); 
-
+      incrementMessageCount();
     } catch (error) {
-      console.error("Database connection failed for message:", error);
+      console.error("Message Save Failed:", error);
     }
   };
 
@@ -544,31 +536,32 @@ export default function App() {
     }
   };
   
+  // 🚀 START VIDEO CALL WITH UUID ROUTING
   const handleStartVideoCall = (user: any) => {
     if (!isAdmin && !isVip) {
-      Alert.alert("Premium Feature", "Video Calling is locked. You must subscribe to use the camera!");
+      Alert.alert("Premium Feature", "Video Calling is locked. Subscribe to use the camera!");
       setShowPaywall(true);
       return;
     }
     
     socket.emit("start_call", { 
-      callerId: myName, 
+      callerId: myId,        
       callerName: myName, 
-      receiverId: user.name, 
+      receiverId: user.id,   
       cloudflareSessionId: "generating..." 
     });
 
     if (navigationRef.isReady()) {
-      (navigationRef as any).navigate('CloudflareVideoCall', { chatUserName: user.name });
+      (navigationRef as any).navigate('CloudflareVideoCall', { 
+        chatUserName: user.name,
+        remoteSessionId: "generating..." 
+      });
     }
   };
 
   const handleAddFriend = async (user: any) => {
     if (!isAdmin && !isVip) {
-      Alert.alert(
-        "Premium Feature", 
-        "Building a friend list is a VIP exclusive feature! Subscribe to unlock."
-      );
+      Alert.alert("Premium Feature", "Friend lists are a VIP exclusive feature!");
       setShowPaywall(true);
       return;
     }
@@ -579,7 +572,7 @@ export default function App() {
       await fetch(`${API_URL}/api/friends`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ friend_id: user.id })
+        body: JSON.stringify({ user_id: myId, friend_id: user.id })
       });
     } catch (error) {
       console.error("Failed to add friend:", error);
@@ -588,7 +581,7 @@ export default function App() {
 
   const handleSendGift = async (user: any, giftName: string) => {
     if (!isAdmin && !isVip) {
-      Alert.alert("Premium Feature", "Sending gifts is a VIP exclusive feature. Subscribe to stand out!");
+      Alert.alert("Premium Feature", "Sending gifts is a VIP exclusive feature!");
       setShowPaywall(true);
       return;
     }
@@ -599,7 +592,7 @@ export default function App() {
       await fetch(`${API_URL}/api/gifts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ receiver_id: user.id, gift_name: giftName })
+        body: JSON.stringify({ sender_id: myId, receiver_id: user.id, gift_name: giftName })
       });
     } catch (error) {
       console.error("Failed to send gift:", error);
@@ -639,8 +632,10 @@ export default function App() {
                 setIsAdmin(route.params.user.role === 'admin'); 
                 setIsVip(route.params.user.is_vip || false);
                 if (route.params.user.city) setMyCity(route.params.user.city);
-                // 🚀 FIXED: LOGIN DATA CATCHER (Line 840)
+                
+                // 🚀 DB SYNC: LOAD PERSISTENT PHOTOS ON LOGIN 🚀
                 if (route.params.user.image) setMyImage(route.params.user.image);
+                if (route.params.user.gallery) setMyGalleryImages(route.params.user.gallery); 
               }
             }, [route.params]);
 
@@ -651,6 +646,12 @@ export default function App() {
                   text: "Logout", 
                   style: "destructive",
                   onPress: () => {
+                    setMyId("");
+                    setMyName("");
+                    setMyImage("");
+                    setMyGalleryImages([]);
+                    setIsVip(false);
+                    setIsAdmin(false);
                     navigation.replace('Home');
                   }
                 }
@@ -664,7 +665,7 @@ export default function App() {
                 {tab !== 'admin' && tab !== 'settings' && tab !== 'inbox' && (
                   <HeaderSwipe 
                     logoImg={logoImg} 
-                    myImage={myImage}       // 🚀 PICTURE ADDED TO SEARCH HEADER (Line 865)
+                    myImage={myImage} 
                     isVip={isVip} 
                     setShowPaywall={setShowPaywall} 
                     tab={tab} 
@@ -937,7 +938,7 @@ export default function App() {
                             </TouchableOpacity>
                           </View>
                           <EditProfile 
-                            myId={myId}             
+                            myId={myId}              
                             myImage={myImage}       
                             setMyImage={setMyImage} 
                             myName={myName} 
@@ -953,10 +954,12 @@ export default function App() {
                         </View>
                       ) : (
                         <View className="flex-1 bg-white mt-4 rounded-t-3xl overflow-hidden shadow-lg">
-                          <UserDashboard 
-                            myId={myId}             
+                       <UserDashboard 
+                            myId={myId}              
                             myImage={myImage}       
                             setMyImage={setMyImage} 
+                            myGalleryImages={myGalleryImages} // 🚀 PASS GALLERY TO DASHBOARD
+                            setMyGalleryImages={setMyGalleryImages} 
                             myName={myName} 
                             myCity={myCity} 
                             isVip={isVip} 
@@ -1018,7 +1021,7 @@ export default function App() {
                   handleAddFriend={handleAddFriend}
                   handleSendGift={handleSendGift} 
                   myId={myId} 
-                  myImage={myImage} // 🚀 FIXED: IMAGE PASSED TO MODALS (Line 1025)
+                  myImage={myImage} // 🚀 FIXED: PASSED IMAGE
                   isAdmin={isAdmin}
                   isVip={isVip}
                   setShowPaywall={setShowPaywall}

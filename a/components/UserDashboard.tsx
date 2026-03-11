@@ -11,13 +11,15 @@ import { FriendRequests } from './FriendRequests';
 const API_URL = "http://10.0.2.2:3001"; 
 
 interface UserDashboardProps {
-  myId: string;                     
-  myImage: string;                  
-  setMyImage: (url: string) => void; 
+  myId: string;
+  myImage: string;
+  setMyImage: (url: string) => void;
+  myGalleryImages: string[];           // 🚀 FIXED: PROPS DEFINED
+  setMyGalleryImages: React.Dispatch<React.SetStateAction<string[]>>; // 🚀 FIXED: PROPS DEFINED
   myName: string;
   myCity: string;
   isVip: boolean;
-  isAdmin: boolean; 
+  isAdmin: boolean;
   setShowPaywall: (show: boolean) => void;
   openEditProfile: () => void;
   receivedGifts: any[];
@@ -27,6 +29,8 @@ export const UserDashboard = ({
   myId,
   myImage,
   setMyImage,
+  myGalleryImages,     // 🚀 DESTRUCTURED
+  setMyGalleryImages,  // 🚀 DESTRUCTURED
   myName, 
   myCity, 
   isVip, 
@@ -39,24 +43,15 @@ export const UserDashboard = ({
   const [profilePic, setProfilePic] = useState<string | null>(myImage || null);
   const [isUploadingPic, setIsUploadingPic] = useState(false);
 
-  // Sync if props update
+  // Sync if props update (e.g., from App.tsx or database reload)
   useEffect(() => {
     if (myImage) setProfilePic(myImage);
   }, [myImage]);
 
-  const myImages: string[] = [];
-
-  // 🚀 FIXED: RIPPED OUT FAKE HARDCODED FRIENDS 🚀
+  // 🚀 REAL DATA STATES - NO HARDCODED DUMMY FRIENDS 🚀
   const [myFriends, setMyFriends] = useState<any[]>([]);
-
-  // 🚀 FIXED: RIPPED OUT FAKE HARDCODED REQUESTS 🚀
   const [receivedRequests, setReceivedRequests] = useState<any[]>([]);
   const [sentRequests, setSentRequests] = useState<any[]>([]);
-
-  // Note for future you: To load REAL friends from DB, add this:
-  // useEffect(() => {
-  //   fetch(`${API_URL}/api/friends/${myId}`).then(res => res.json()).then(data => setMyFriends(data));
-  // }, [myId]);
 
   const handleRemoveFriend = (friendId: string) => {
     setMyFriends(prevFriends => prevFriends.filter(f => f.id !== friendId));
@@ -65,7 +60,7 @@ export const UserDashboard = ({
   const handleDeclineRequest = (id: string) => setReceivedRequests(prev => prev.filter(req => req.id !== id));
   const handleCancelRequest = (id: string) => setSentRequests(prev => prev.filter(req => req.id !== id));
 
-  // 🚀 RIPPED OUT FAKE GIFTS. It now defaults to empty if the DB returns nothing 🚀
+  // Default to empty array if no gifts from database
   const displayGifts = receivedGifts.length > 0 ? receivedGifts : [];
 
   const handleUploadProfilePic = async () => {
@@ -87,7 +82,7 @@ export const UserDashboard = ({
       setIsUploadingPic(true);
       try {
         console.log("1. Starting image manipulation...");
-        // 🚀 FORCE WEBP FORMAT 🚀
+        // 🚀 FORCE WEBP FORMAT FOR LIGHTER SIZE 🚀
         const manipResult = await ImageManipulator.manipulateAsync(
           result.assets[0].uri,
           [{ resize: { width: 500 } }], 
@@ -127,7 +122,7 @@ export const UserDashboard = ({
           
           // 🚀 1. Update the Local App View Immediately
           setProfilePic(publicUrl); 
-          if (setMyImage) setMyImage(publicUrl); // Sync to App.tsx
+          if (setMyImage) setMyImage(publicUrl); // Sync back to root App state
 
           // 🚀 2. SAVE IT PERMANENTLY IN POSTGRESQL DATABASE
           await fetch(`${API_URL}/api/users/update-image`, {
@@ -138,10 +133,9 @@ export const UserDashboard = ({
 
           Alert.alert("Looking Good!", "Profile picture saved to database.");
         } else {
-          // 🚀 IF CLOUDFLARE REJECTS IT, READ THE ERROR MESSAGE!
           const errorText = await uploadRes.text();
           console.error("❌ CLOUDFLARE REJECTED THE UPLOAD. Reason:", errorText);
-          Alert.alert("Upload Rejected", "Cloudflare blocked the file. Check terminal.");
+          Alert.alert("Upload Rejected", "Cloudflare blocked the file.");
         }
       } catch (error: any) {
         console.error("❌ UPLOAD CRASHED:", error.message || error);
@@ -212,8 +206,13 @@ export const UserDashboard = ({
 
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         
-        {/* 🚀 FIXED: ADDED USER ID SO GALLERY IMAGES CAN BE SAVED TO DATABASE 🚀 */}
-        <ImageGallery initialImages={myImages} isPublicView={false} userId={myId} />
+        {/* 🚀 IMAGE GALLERY - FIXED: CONNECTED TO REAL STATE 🚀 */}
+        <ImageGallery 
+          initialImages={myGalleryImages} 
+          setMyGalleryImages={setMyGalleryImages}
+          isPublicView={false} 
+          userId={myId} 
+        />
         
         <FriendRequests 
           receivedRequests={receivedRequests}
