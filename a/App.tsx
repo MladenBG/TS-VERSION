@@ -116,6 +116,10 @@ export default function App() {
   const [showBlockList, setShowBlockList] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
 
+  // 🚀 FRIEND REQUESTS STATE 🚀
+  const [showFriendRequests, setShowFriendRequests] = useState(false);
+  const [reqTab, setReqTab] = useState<'received' | 'sent'>('received');
+
   // =========================================================================
   // EFFECTS & DATA FETCHING
   // =========================================================================
@@ -211,6 +215,8 @@ export default function App() {
             distance: Math.floor(Math.random() * 10) + 1,
             isBanned: false,
             friends: u.friends || [],
+            sent_requests: u.sent_requests || [],         // 🚀 NEW: PENDING SENT
+            received_requests: u.received_requests || [], // 🚀 NEW: PENDING RECEIVED
             gifts: u.gifts || [],
             gallery: u.gallery || [], 
             joinedAt: u.created_at, 
@@ -317,6 +323,49 @@ export default function App() {
       fetchInitialData();
     } catch (error) {
       console.error("Error unblocking:", error);
+    }
+  };
+
+  // 🚀 ACCEPT FRIEND REQUEST 🚀
+  const handleAcceptRequest = async (friendId: string) => {
+    try {
+      await fetch(`${API_URL}/api/friends/accept`, {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: myId, friend_id: friendId })
+      });
+      Alert.alert("Accepted", "You are now friends!");
+      fetchInitialData();
+    } catch (error) {
+      console.error("Error accepting request:", error);
+    }
+  };
+
+  // 🚀 DECLINE FRIEND REQUEST 🚀
+  const handleDeclineRequest = async (friendId: string) => {
+    try {
+      await fetch(`${API_URL}/api/friends/decline`, {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: myId, friend_id: friendId })
+      });
+      fetchInitialData();
+    } catch (error) {
+      console.error("Error declining request:", error);
+    }
+  };
+
+  // 🚀 CANCEL SENT FRIEND REQUEST 🚀
+  const handleCancelRequest = async (friendId: string) => {
+    try {
+      await fetch(`${API_URL}/api/friends/cancel`, {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: myId, friend_id: friendId })
+      });
+      fetchInitialData();
+    } catch (error) {
+      console.error("Error cancelling request:", error);
     }
   };
 
@@ -571,7 +620,6 @@ export default function App() {
     }
   };
 
-  // 🚀 SEND LOBBY MESSAGE (DB SYNCED)
   const sendLobbyMessage = async () => {
     if (!lobbyInput.trim() || !myName || !myId) return; 
     if (!checkMessageLimits()) return;
@@ -589,7 +637,6 @@ export default function App() {
         })
       });
       
-      // 🚀 CATCH 403 DB LOCK
       if (res.status === 403) {
         Alert.alert("Limit Reached", "You have used your 2 free messages. Unlock VIP to continue!");
         setShowPaywall(true);
@@ -617,7 +664,6 @@ export default function App() {
     }
   };
   
-  // 🚀 ADMIN BYPASS FOR VIDEO CALL
   const handleStartVideoCall = (user: any) => {
     if (!isAdmin && !isVip) {
       Alert.alert("Premium Feature", "Video Calling is locked. Subscribe to use the camera!");
@@ -670,8 +716,6 @@ export default function App() {
       return;
     }
 
-    Alert.alert("Gift Sent!", `You sent a ${giftName} to ${user.name}!`);
-    
     try {
       await fetch(`${API_URL}/api/gifts`, {
         method: 'POST',
@@ -682,6 +726,26 @@ export default function App() {
           gift_name: giftName 
         })
       });
+
+      Alert.alert("Gift Sent!", `You sent a ${giftName} to ${user.name}!`);
+
+      setProfiles(prev => prev.map(p => {
+        if (p.id === user.id) {
+          return {
+            ...p,
+            gifts: [...(p.gifts || []), { gift_name: giftName, sender_id: myId, id: Date.now() }]
+          };
+        }
+        return p;
+      }));
+
+      if (selectedUser && selectedUser.id === user.id) {
+        setSelectedUser((prev: any) => ({
+          ...prev,
+          gifts: [...(prev.gifts || []), { gift_name: giftName, sender_id: myId, id: Date.now() }]
+        }));
+      }
+
     } catch (error) {
       console.error("Failed to send gift:", error);
     }
@@ -700,6 +764,13 @@ export default function App() {
       }
     ]);
   };
+
+  // =========================================================================
+  // CALCULATE CURRENT USER REQUESTS
+  // =========================================================================
+  const myProfileData = profiles.find(p => p.id === myId);
+  const receivedRequests = myProfileData?.received_requests || [];
+  const sentRequests = myProfileData?.sent_requests || [];
 
   // =========================================================================
   // RENDER MAIN APPLICATION UI
@@ -722,12 +793,10 @@ export default function App() {
                   setMyId(route.params.user.id);
                   setMyName(route.params.user.name || 'User');
                   
-                  // 🚀 FIXED: MAKE SURE ADMIN STRING IS LOWERCASE SO BYPASS WORKS 🚀
                   setIsAdmin(route.params.user.role?.toLowerCase() === 'admin'); 
                   
                   setIsVip(route.params.user.is_vip || false);
                   
-                  // LOAD MESSAGE COUNT DIRECTLY FROM DB LOGIN
                   if (route.params.user.message_count !== undefined) {
                     setTotalFreeMessages(route.params.user.message_count);
                   }
@@ -795,7 +864,7 @@ export default function App() {
                                   item={item} 
                                   onSelect={handleProfileView} 
                                   onToggleLike={toggleLike} 
-                                  myId={myId} /* 🚀 PASSED MY ID TO USER CARD SO REPORT/BLOCK WORKS */
+                                  myId={myId} 
                                 />
                               )} 
                               numColumns={2} 
@@ -1032,7 +1101,18 @@ export default function App() {
                             setShowPaywall={setShowPaywall} 
                           />
 
-                          {/* 🚀 NEW: MANAGE BLOCKED USERS BUTTON 🚀 */}
+                          {/* 🚀 NEW: MANAGE FRIEND REQUESTS BUTTON 🚀 */}
+                          <TouchableOpacity 
+                            className="bg-blue-50 p-[15px] rounded-[15px] items-center mt-4 border border-blue-200"
+                            onPress={() => setShowFriendRequests(true)}
+                          >
+                            <Text className="text-blue-600 font-bold">
+                              🤝 Manage Friend Requests 
+                              {receivedRequests.length > 0 && ` (${receivedRequests.length})`}
+                            </Text>
+                          </TouchableOpacity>
+
+                          {/* MANAGE BLOCKED USERS BUTTON */}
                           <TouchableOpacity 
                             className="bg-red-50 p-[15px] rounded-[15px] items-center mt-4 border border-red-200"
                             onPress={() => {
@@ -1115,7 +1195,6 @@ export default function App() {
                     ))}
                   </View>
 
-                  {/* 🚀 MODALS INSTANCE 🚀 */}
                   <AllModals 
                     showFilters={showFilters} 
                     setShowFilters={setShowFilters} 
@@ -1157,7 +1236,7 @@ export default function App() {
                     isAdmin={isAdmin} 
                   />
 
-                  {/* 🚀 NEW: BLOCK LIST MODAL OVERLAY 🚀 */}
+                  {/* BLOCK LIST MODAL OVERLAY */}
                   <Modal visible={showBlockList} animationType="slide">
                     <SafeAreaView className="flex-1 bg-white">
                       <View className="flex-row items-center justify-between p-5 border-b border-gray-200">
@@ -1190,6 +1269,98 @@ export default function App() {
                           </View>
                         )}
                       />
+                    </SafeAreaView>
+                  </Modal>
+
+                  {/* 🚀 NEW: FRIEND REQUESTS MODAL OVERLAY 🚀 */}
+                  <Modal visible={showFriendRequests} animationType="slide">
+                    <SafeAreaView className="flex-1 bg-white">
+                      <View className="flex-row items-center justify-between p-5 border-b border-gray-200">
+                        <TouchableOpacity onPress={() => setShowFriendRequests(false)}>
+                          <Text className="text-green-500 font-bold text-lg">← Back</Text>
+                        </TouchableOpacity>
+                        <Text className="text-xl font-black text-black">Friend Requests</Text>
+                        <View style={{ width: 50 }} />
+                      </View>
+                      
+                      <View className="flex-row border-b border-gray-200">
+                        <TouchableOpacity 
+                          onPress={() => setReqTab('received')} 
+                          className={`flex-1 p-4 items-center ${reqTab === 'received' ? 'border-b-2 border-green-500' : ''}`}
+                        >
+                          <Text className={`font-bold ${reqTab === 'received' ? 'text-green-500' : 'text-gray-400'}`}>
+                            Received ({receivedRequests.length})
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          onPress={() => setReqTab('sent')} 
+                          className={`flex-1 p-4 items-center ${reqTab === 'sent' ? 'border-b-2 border-green-500' : ''}`}
+                        >
+                          <Text className={`font-bold ${reqTab === 'sent' ? 'text-green-500' : 'text-gray-400'}`}>
+                            Sent ({sentRequests.length})
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {reqTab === 'received' && (
+                        <FlatList
+                          data={receivedRequests}
+                          keyExtractor={item => item.id.toString()}
+                          ListEmptyComponent={
+                            <Text className="text-center mt-10 text-gray-500 font-bold">
+                              No pending received requests.
+                            </Text>
+                          }
+                          renderItem={({item}) => (
+                            <View className="flex-row items-center justify-between p-4 border-b border-gray-100 mx-2">
+                              <View className="flex-row items-center">
+                                <Image source={{uri: item.image}} className="w-12 h-12 rounded-full mr-3 border border-gray-200" />
+                                <Text className="font-bold text-lg text-black">{item.name}</Text>
+                              </View>
+                              <View className="flex-row">
+                                <TouchableOpacity 
+                                  onPress={() => handleAcceptRequest(item.id)} 
+                                  className="bg-green-500 px-4 py-2 rounded-full mr-2"
+                                >
+                                  <Text className="text-white font-bold">Accept</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                  onPress={() => handleDeclineRequest(item.id)} 
+                                  className="bg-gray-200 px-4 py-2 rounded-full"
+                                >
+                                  <Text className="text-black font-bold">Decline</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          )}
+                        />
+                      )}
+
+                      {reqTab === 'sent' && (
+                        <FlatList
+                          data={sentRequests}
+                          keyExtractor={item => item.id.toString()}
+                          ListEmptyComponent={
+                            <Text className="text-center mt-10 text-gray-500 font-bold">
+                              You haven't sent any requests.
+                            </Text>
+                          }
+                          renderItem={({item}) => (
+                            <View className="flex-row items-center justify-between p-4 border-b border-gray-100 mx-2">
+                              <View className="flex-row items-center">
+                                <Image source={{uri: item.image}} className="w-12 h-12 rounded-full mr-3 border border-gray-200" />
+                                <Text className="font-bold text-lg text-black">{item.name}</Text>
+                              </View>
+                              <TouchableOpacity 
+                                onPress={() => handleCancelRequest(item.id)} 
+                                className="bg-red-500 px-4 py-2 rounded-full"
+                              >
+                                <Text className="text-white font-bold">Cancel</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        />
+                      )}
                     </SafeAreaView>
                   </Modal>
 

@@ -3,46 +3,83 @@ import type { Request, Response } from "express";
 import http from "http";
 import { Server, Socket } from "socket.io";
 import cors from "cors";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 // @ts-ignore
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { Pool } from "pg"; 
-import * as dotenv from "dotenv";
-import bcrypt from "bcrypt";
+import { Pool } from 'pg'; 
+import * as dotenv from 'dotenv';
+import bcrypt from 'bcrypt';
 
-// Initialize Environment Variables
+// ==========================================================
+// ⚙️ ENVIRONMENT & SERVER SETUP
+// ==========================================================
 dotenv.config();
 
-// Setup Express and HTTP Server
 const app = express();
 const server = http.createServer(app);
 
-// Middleware Configuration
 app.use(cors());
 app.use(express.json());
 
-// Request Logger
+// Request Logging Middleware
 app.use((req: Request, res: Response, next: Function) => {
   console.log(`[${req.method}] request received at: ${req.url}`);
   next();
 });
 
-// Database Connection Setup
+// ==========================================================
+// 🗄️ DATABASE CONNECTION & AUTO-SETUP
+// ==========================================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:YOUR_DB_PASSWORD@127.0.0.1:5432/dateroot',
   connectionTimeoutMillis: 5000, 
 });
 
-pool.connect((err: any, client: any, release: any) => {
+pool.connect(async (err: any, client: any, release: any) => {
   if (err) {
     console.error('DATABASE CONNECTION FAILED. Is PostgreSQL running?', err.message);
   } else {
     console.log('DATABASE CONNECTED SUCCESSFULLY');
+    
+    // 🚀 SAFETY: AUTO-CREATE MISSING TABLES FOR GIFTS AND PENDING FRIENDS 🚀
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS gifts (
+          id SERIAL PRIMARY KEY,
+          sender_id VARCHAR(255),
+          receiver_id VARCHAR(255),
+          gift_name VARCHAR(255),
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS friends (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(255),
+          friend_id VARCHAR(255),
+          status VARCHAR(50) DEFAULT 'pending',
+          created_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(user_id, friend_id)
+        );
+      `);
+
+      // If the friends table already exists but lacks the 'status' column, add it safely
+      await client.query(`
+        ALTER TABLE friends 
+        ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'pending';
+      `);
+
+      console.log('Verified gifts and friends tables.');
+    } catch (e) {
+      console.error("Could not auto-verify tables:", e);
+    }
+    
     release();
   }
 });
 
-// Socket.io Setup
+// ==========================================================
+// 🔌 SOCKET.IO & S3 SETUP
+// ==========================================================
 const io = new Server(server, {
   cors: {
     origin: "*", 
@@ -50,7 +87,6 @@ const io = new Server(server, {
   }
 });
 
-// Cloudflare R2 S3 Client Setup
 const s3 = new S3Client({
   region: 'auto',
   endpoint: `https://9751fff4aee9e644766dfa510fedd00f.r2.cloudflarestorage.com`,
@@ -60,45 +96,56 @@ const s3 = new S3Client({
   },
 });
 
-// Type Interfaces
+// ==========================================================
+// 📋 TYPES AND INTERFACES
+// ==========================================================
 interface UserUpdatePayload {
-    userId: string;
-    imageUrl: string;
+  userId: string;
+  imageUrl: string;
 }
 
 interface ReportPayload {
-    reporterId: string;
-    reportedId: string;
-    reason: string;
+  reporterId: string;
+  reportedId: string;
+  reason: string;
 }
 
 interface BlockPayload {
-    blockerId: string;
-    blockedId: string;
+  blockerId: string;
+  blockedId: string;
 }
 
 // ==========================================================
-// AUTHENTICATION ROUTES
+// 🔐 AUTHENTICATION
 // ==========================================================
 app.post('/api/auth/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
   
   if (!email || !password) {
-    return res.status(400).json({ error: "Email and password required" });
+    return res.status(400).json({ 
+      error: "Email and password required" 
+    });
   }
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const result = await pool.query(
+      'SELECT * FROM users WHERE email = $1', 
+      [email]
+    );
     
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: "User not found" });
+      return res.status(401).json({ 
+        error: "User not found" 
+      });
     }
 
     const user = result.rows[0];
     const dbPassword = user.password || user.password_hash; 
     
     if (!dbPassword) {
-      return res.status(401).json({ error: "This user has no password set in the database." });
+      return res.status(401).json({ 
+        error: "This user has no password set in the database." 
+      });
     }
 
     let isValid = false;
@@ -111,18 +158,25 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     }
 
     if (!isValid) {
-      return res.status(401).json({ error: "Wrong password" });
+      return res.status(401).json({ 
+        error: "Wrong password" 
+      });
     }
 
-    res.json({ success: true, user: user });
+    res.json({ 
+      success: true, 
+      user: user 
+    });
   } catch (error) {
     console.error("Login Error:", error);
-    res.status(500).json({ error: "Server crashed during login" });
+    res.status(500).json({ 
+      error: "Server crashed during login" 
+    });
   }
 });
 
 // ==========================================================
-// UPLOAD ROUTES
+// ☁️ UPLOADS (CLOUDFLARE R2 S3)
 // ==========================================================
 app.get('/api/get-upload-url', async (req: Request, res: Response) => {
   try {
@@ -143,12 +197,14 @@ app.get('/api/get-upload-url', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error("Error generating R2 URL:", error);
-    res.status(500).json({ error: "Failed to generate upload URL" });
+    res.status(500).json({ 
+      error: "Failed to generate upload URL" 
+    });
   }
 });
 
 // ==========================================================
-// USER ROUTES (DISCOVERY FEED)
+// 🌍 USER ROUTES (DISCOVERY FEED WITH PENDING FRIENDS/GIFTS)
 // ==========================================================
 app.get('/api/users', async (req: Request, res: Response) => {
   const myId = req.query.my_id as string;
@@ -157,14 +213,51 @@ app.get('/api/users', async (req: Request, res: Response) => {
     let query = '';
     let params: any[] = [];
     
+    // 🚀 FULLY UPDATED SQL TO SEPARATE ACCEPTED FRIENDS AND PENDING REQUESTS 🚀
+    const selectFields = `
+      SELECT u.*, 
+      COALESCE(
+        (SELECT json_agg(image_url) FROM gallery_images WHERE user_id = u.id), 
+        '[]'
+      ) AS gallery,
+      
+      COALESCE(
+        (SELECT json_agg(json_build_object('id', u2.id, 'name', u2.name, 'image', u2.image)) 
+         FROM friends f 
+         JOIN users u2 ON (f.friend_id = u2.id OR f.user_id = u2.id) 
+         WHERE (f.user_id = u.id OR f.friend_id = u.id) 
+           AND u2.id != u.id 
+           AND f.status = 'accepted'), 
+        '[]'
+      ) AS friends,
+
+      COALESCE(
+        (SELECT json_agg(json_build_object('id', u2.id, 'name', u2.name, 'image', u2.image)) 
+         FROM friends f 
+         JOIN users u2 ON f.friend_id = u2.id 
+         WHERE f.user_id = u.id AND f.status = 'pending'), 
+        '[]'
+      ) AS sent_requests,
+
+      COALESCE(
+        (SELECT json_agg(json_build_object('id', u1.id, 'name', u1.name, 'image', u1.image)) 
+         FROM friends f 
+         JOIN users u1 ON f.user_id = u1.id 
+         WHERE f.friend_id = u.id AND f.status = 'pending'), 
+        '[]'
+      ) AS received_requests,
+
+      COALESCE(
+        (SELECT json_agg(json_build_object('id', g.id, 'gift_name', g.gift_name, 'sender_id', g.sender_id)) 
+         FROM gifts g WHERE g.receiver_id = u.id), 
+        '[]'
+      ) AS gifts
+      FROM users u
+    `;
+
     if (myId) {
       query = `
-        SELECT u.*, 
-        COALESCE(
-          (SELECT json_agg(image_url) FROM gallery_images WHERE user_id = u.id), 
-          '[]'
-        ) AS gallery
-        FROM users u
+        ${selectFields}
         WHERE u.id NOT IN (
             SELECT blocked_id FROM blocks WHERE blocker_id = $1
             UNION
@@ -175,12 +268,7 @@ app.get('/api/users', async (req: Request, res: Response) => {
       params = [myId];
     } else {
       query = `
-        SELECT u.*, 
-        COALESCE(
-          (SELECT json_agg(image_url) FROM gallery_images WHERE user_id = u.id), 
-          '[]'
-        ) AS gallery
-        FROM users u
+        ${selectFields}
         ORDER BY u.created_at DESC
       `;
     }
@@ -253,23 +341,10 @@ app.post('/api/users/update-profile', async (req: Request, res: Response) => {
     `;
 
     const values = [
-      name || null, 
-      bio || null, 
-      hereFor || null, 
-      city || null, 
-      country || null, 
-      music || null, 
-      education || null, 
-      sexuality || null, 
-      bodyType || null, 
-      hairColor || null, 
-      eyeColor || null, 
-      weight || null, 
-      height || null, 
-      day || null, 
-      month || null, 
-      year || null, 
-      userId
+      name || null, bio || null, hereFor || null, city || null, country || null, 
+      music || null, education || null, sexuality || null, bodyType || null, 
+      hairColor || null, eyeColor || null, weight || null, height || null, 
+      day || null, month || null, year || null, userId
     ];
 
     const result = await pool.query(updateQuery, values);
@@ -281,12 +356,15 @@ app.post('/api/users/update-profile', async (req: Request, res: Response) => {
     res.json({ success: true, message: "Profile updated successfully" });
   } catch (error: any) {
     console.error("Profile Update Error:", error);
-    res.status(500).json({ error: "Failed to update profile", details: error.message });
+    res.status(500).json({ 
+      error: "Failed to update profile", 
+      details: error.message 
+    });
   }
 });
 
 // ==========================================================
-// GALLERY ROUTES
+// 🖼️ GALLERY ROUTES
 // ==========================================================
 app.post('/api/gallery/add', async (req: Request, res: Response) => {
   const { userId, imageUrl } = req.body as UserUpdatePayload;
@@ -317,7 +395,7 @@ app.post('/api/gallery/remove', async (req: Request, res: Response) => {
 });
 
 // ==========================================================
-// ADMIN DASHBOARD ROUTES
+// 🛠️ ADMIN DASHBOARD ROUTES
 // ==========================================================
 app.post('/api/admin/action', async (req: Request, res: Response) => {
   const { action, target_id } = req.body;
@@ -347,13 +425,11 @@ app.post('/api/admin/action', async (req: Request, res: Response) => {
       
       if (userRes.rows.length > 0 && userRes.rows[0].last_ip) {
         const targetIp = userRes.rows[0].last_ip;
-        
         try {
-          await pool.query(`
-            INSERT INTO banned_ips (ip_address) 
-            VALUES ($1) 
-            ON CONFLICT DO NOTHING
-          `, [targetIp]);
+          await pool.query(
+            `INSERT INTO banned_ips (ip_address) VALUES ($1) ON CONFLICT DO NOTHING`, 
+            [targetIp]
+          );
         } catch (ignoreErr) { 
           console.log("Note: Could not insert into banned_ips.", ignoreErr); 
         }
@@ -368,7 +444,10 @@ app.post('/api/admin/action', async (req: Request, res: Response) => {
       
       if (userRes.rows.length > 0 && userRes.rows[0].last_ip) {
         try {
-          await pool.query('DELETE FROM banned_ips WHERE ip_address = $1', [userRes.rows[0].last_ip]);
+          await pool.query(
+            'DELETE FROM banned_ips WHERE ip_address = $1', 
+            [userRes.rows[0].last_ip]
+          );
         } catch (ignoreErr) {}
       }
       
@@ -400,7 +479,6 @@ app.post('/api/admin/resolve-report', async (req: Request, res: Response) => {
 
 app.get('/api/admin/reports', async (req: Request, res: Response) => {
   try {
-    // 🚀 FIXED: JOINS USERS TABLE SO FRONTEND CAN SEE THE ACTUAL NAMES 🚀
     const result = await pool.query(`
       SELECT 
         r.id, 
@@ -425,7 +503,9 @@ app.get('/api/admin/reports', async (req: Request, res: Response) => {
 
 app.get('/api/admin/ip-logs', async (req: Request, res: Response) => {
     try {
-      const result = await pool.query('SELECT name, email, last_ip, created_at FROM users WHERE last_ip IS NOT NULL');
+      const result = await pool.query(
+        'SELECT name, email, last_ip, created_at FROM users WHERE last_ip IS NOT NULL'
+      );
       res.json(result.rows);
     } catch (error) {
       res.status(500).json({ error: "Could not fetch IP logs" });
@@ -433,13 +513,11 @@ app.get('/api/admin/ip-logs', async (req: Request, res: Response) => {
 });
 
 // ==========================================================
-// BLOCKING AND REPORTING ROUTES
+// 🚫 BLOCKING AND REPORTING ROUTES
 // ==========================================================
-
 app.post('/api/block', async (req: Request, res: Response) => {
   const { blockerId, blockedId } = req.body as BlockPayload;
   try {
-    // 🚀 FIXED: AVOIDS CRASHING IF USER CLICKS BLOCK TWICE 🚀
     await pool.query(
       `INSERT INTO blocks (blocker_id, blocked_id, created_at) 
        VALUES ($1, $2, NOW()) 
@@ -483,7 +561,6 @@ app.get('/api/blocks/:userId', async (req: Request, res: Response) => {
 app.post('/api/report', async (req: Request, res: Response) => {
   const { reporterId, reportedId, reason } = req.body as ReportPayload;
   try {
-    // 🚀 FIXED: SETS DEFAULT STATUS SO ADMIN DASHBOARD FINDS IT 🚀
     await pool.query(
       `INSERT INTO reports (reporter_id, reported_id, reason, status, created_at) 
        VALUES ($1, $2, $3, 'pending', NOW())`,
@@ -497,7 +574,7 @@ app.post('/api/report', async (req: Request, res: Response) => {
 });
 
 // ==========================================================
-// INTERACTIONS (LIKES, VIEWS, GIFTS)
+// ❤️ INTERACTIONS (LIKES, VIEWS, GIFTS, FRIENDS)
 // ==========================================================
 app.post('/api/likes', async (req: Request, res: Response) => {
   const { user_id, liked_user_id } = req.body;
@@ -554,12 +631,118 @@ app.post('/api/views', async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
+// 🚀 FRIENDS: SEND REQUEST 🚀
+app.post('/api/friends', async (req: Request, res: Response) => {
+  const { user_id, friend_id } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO friends (user_id, friend_id, status, created_at) 
+       VALUES ($1, $2, 'pending', NOW()) 
+       ON CONFLICT (user_id, friend_id) 
+       DO UPDATE SET status = 'pending'`,
+      [user_id, friend_id]
+    );
+    res.json({ success: true, message: "Friend request sent" });
+  } catch (error) {
+    console.error("Friend Error:", error);
+    res.status(500).json({ error: "Failed to send friend request" });
+  }
+});
+
+// 🚀 FRIENDS: ACCEPT REQUEST 🚀
+app.post('/api/friends/accept', async (req: Request, res: Response) => {
+  const { user_id, friend_id } = req.body;
+  // user_id = the person pressing Accept (receiver)
+  // friend_id = the person who sent the request
+  try {
+    await pool.query(
+      "UPDATE friends SET status = 'accepted' WHERE user_id = $1 AND friend_id = $2",
+      [friend_id, user_id] 
+    );
+    res.json({ success: true, message: "Friend request accepted" });
+  } catch (error) {
+    console.error("Accept Friend Error:", error);
+    res.status(500).json({ error: "Failed to accept request" });
+  }
+});
+
+// 🚀 FRIENDS: DECLINE REQUEST 🚀
+app.post('/api/friends/decline', async (req: Request, res: Response) => {
+  const { user_id, friend_id } = req.body;
+  // user_id = the person pressing Decline (receiver)
+  // friend_id = the person who sent the request
+  try {
+    await pool.query(
+      "DELETE FROM friends WHERE user_id = $1 AND friend_id = $2",
+      [friend_id, user_id] 
+    );
+    res.json({ success: true, message: "Friend request declined" });
+  } catch (error) {
+    console.error("Decline Friend Error:", error);
+    res.status(500).json({ error: "Failed to decline request" });
+  }
+});
+
+// 🚀 FRIENDS: CANCEL SENT REQUEST 🚀
+app.post('/api/friends/cancel', async (req: Request, res: Response) => {
+  const { user_id, friend_id } = req.body;
+  try {
+    await pool.query(
+      'DELETE FROM friends WHERE user_id = $1 AND friend_id = $2 AND status = $3',
+      [user_id, friend_id, 'pending']
+    );
+    res.json({ success: true, message: "Friend request cancelled" });
+  } catch (error) {
+    console.error("Cancel Friend Error:", error);
+    res.status(500).json({ error: "Failed to cancel request" });
+  }
+});
+
+// 🚀 FRIENDS: REMOVE EXISTING FRIEND 🚀
+app.post('/api/friends/remove', async (req: Request, res: Response) => {
+  const { user_id, friend_id } = req.body;
+  try {
+    await pool.query(
+      'DELETE FROM friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)',
+      [user_id, friend_id]
+    );
+    res.json({ success: true, message: "Friend removed" });
+  } catch (error) {
+    console.error("Remove Friend Error:", error);
+    res.status(500).json({ error: "Failed to remove friend" });
+  }
+});
+
+app.post('/api/gifts', async (req: Request, res: Response) => {
+  const { sender_id, receiver_id, gift_name } = req.body;
+  try {
+    await pool.query(
+      'INSERT INTO gifts (sender_id, receiver_id, gift_name, created_at) VALUES ($1, $2, $3, NOW())',
+      [sender_id, receiver_id, gift_name]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Gift Error:", error);
+    res.status(500).json({ error: "Failed to send gift" });
+  }
+});
+
 app.get('/api/gifts', async (req: Request, res: Response) => {
-  res.json([]);
+  try {
+    const result = await pool.query(`
+      SELECT g.*, u.name as sender_name, u.image as sender_image 
+      FROM gifts g 
+      LEFT JOIN users u ON g.sender_id = u.id 
+      ORDER BY g.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    res.json([]);
+  }
 });
 
 // ==========================================================
-// LOBBY MESSAGES
+// 💬 LOBBY MESSAGES
 // ==========================================================
 app.get('/api/lobby', async (req: Request, res: Response) => {
   try {
@@ -589,8 +772,10 @@ app.get('/api/lobby', async (req: Request, res: Response) => {
 app.post('/api/lobby', async (req: Request, res: Response) => {
   const { sender_id, content } = req.body;
   try {
-    // ENFORCING PAYWALL LIMIT FROM THE SERVER
-    const userRes = await pool.query('SELECT message_count, is_vip, role FROM users WHERE id = $1', [sender_id]);
+    const userRes = await pool.query(
+      'SELECT message_count, is_vip, role FROM users WHERE id = $1', 
+      [sender_id]
+    );
     
     if (userRes.rows.length > 0) {
         const user = userRes.rows[0];
@@ -623,7 +808,7 @@ app.post('/api/lobby', async (req: Request, res: Response) => {
 });
 
 // ==========================================================
-// PRIVATE MESSAGES
+// 🔒 PRIVATE MESSAGES
 // ==========================================================
 app.get('/api/messages', async (req: Request, res: Response) => {
   const myId = req.query.my_id as string;
@@ -683,7 +868,6 @@ app.post('/api/messages', async (req: Request, res: Response) => {
   const { sender_id, receiver_id, content } = req.body;
   try {
     
-    // 🚀 FIXED: PRIVATE MESSAGES ARE BLOCKED IF A BLOCK EXISTS 🚀
     const blockCheck = await pool.query(
       `SELECT id FROM blocks 
        WHERE (blocker_id = $1 AND blocked_id = $2) 
@@ -695,8 +879,11 @@ app.post('/api/messages', async (req: Request, res: Response) => {
         return res.status(403).json({ error: "Blocked" }); 
     }
 
-    // ENFORCING PAYWALL LIMIT
-    const userRes = await pool.query('SELECT message_count, is_vip, role FROM users WHERE id = $1', [sender_id]);
+    const userRes = await pool.query(
+      'SELECT message_count, is_vip, role FROM users WHERE id = $1', 
+      [sender_id]
+    );
+    
     if (userRes.rows.length > 0) {
         const user = userRes.rows[0];
         const isAdmin = user.role && user.role.toLowerCase() === 'admin';
@@ -727,7 +914,7 @@ app.post('/api/settings/invisible', async (req: Request, res: Response) => {
 });
 
 // ==========================================================
-// SOCKET.IO REALTIME EVENT LISTENERS
+// 📡 SOCKET.IO REALTIME EVENT LISTENERS
 // ==========================================================
 io.on("connection", (socket: Socket) => {
   console.log("Connected:", socket.id);
@@ -768,7 +955,7 @@ io.on("connection", (socket: Socket) => {
 });
 
 // ==========================================================
-// START SERVER
+// 🚀 START SERVER
 // ==========================================================
 const PORT = 3001; 
 server.listen(PORT, '0.0.0.0', () => {

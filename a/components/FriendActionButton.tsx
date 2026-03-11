@@ -1,28 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { TouchableOpacity, Text, Alert, ActivityIndicator } from 'react-native';
 
-const API_URL = "http://10.0.2.2:3000";
+// 🚀 FIXED: PORT CHANGED FROM 3000 TO 3001 TO MATCH SERVER 🚀
+const API_URL = "http://10.0.2.2:3001";
 
 export const FriendActionButton = ({ 
   selectedUser, 
   myId, 
   isAdmin, 
   isVip, 
-  setShowPaywall 
+  onRequirePaywall // 🚀 FIXED PROP NAME 
 }: any) => {
   
   const [status, setStatus] = useState<'none' | 'pending' | 'friends'>('none');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Reset button state when you open a new profile
+  // 🚀 FIXED: CHECKS IF ALREADY FRIENDS ON LOAD 🚀
   useEffect(() => {
-    setStatus('none'); 
-  }, [selectedUser?.id]);
+    if (selectedUser?.friends?.some((f: any) => f.id === myId || f.user_id === myId || f.friend_id === myId)) {
+      setStatus('friends');
+    } else {
+      setStatus('none'); 
+    }
+  }, [selectedUser, myId]);
 
   const handlePress = async () => {
     // 1. VIP / Admin Check
     if (!isAdmin && !isVip) {
-      setShowPaywall(); // Closes profile and opens subscription
+      if (onRequirePaywall) onRequirePaywall(); 
       return;
     }
 
