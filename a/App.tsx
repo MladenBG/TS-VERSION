@@ -147,7 +147,7 @@ export default function App() {
   const fetchInitialData = async () => {
     try {
       const requests = [
-        fetch(`${API_URL}/api/users`).then(r => r.json()).catch(() => []),
+        fetch(`${API_URL}/api/users${myId ? `?my_id=${myId}` : ''}`).then(r => r.json()).catch(() => []),
         fetch(`${API_URL}/api/likes/who-liked-me`).then(r => r.json()).catch(() => []),
         fetch(`${API_URL}/api/views`).then(r => r.json()).catch(() => []),
         fetch(`${API_URL}/api/gifts`).then(r => r.json()).catch(() => []),
@@ -313,7 +313,8 @@ export default function App() {
         })
       });
       setBlockedUsers(prev => prev.filter(u => u.id !== blockedId));
-      Alert.alert("Unblocked", "This user has been unblocked.");
+      Alert.alert("Unblocked", "This user has been unblocked. They will appear in search again.");
+      fetchInitialData();
     } catch (error) {
       console.error("Error unblocking:", error);
     }
@@ -535,10 +536,17 @@ export default function App() {
       });
 
       // 🚀 CATCH 403 DB LOCK
-      if (res.status === 403) {
-        Alert.alert("Limit Reached", "You have used your 2 free messages. Unlock VIP to continue!");
-        setShowPaywall(true);
-        return;
+      if (!res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        if (resData.error === "Blocked") {
+          Alert.alert("Blocked", "You cannot send messages to this user.");
+          return;
+        }
+        if (resData.error === "Limit Reached") {
+          Alert.alert("Limit Reached", "You have used your 2 free messages. Unlock VIP to continue!");
+          setShowPaywall(true);
+          return;
+        }
       }
 
       setMessages(prev => {
@@ -713,7 +721,10 @@ export default function App() {
                 if (route.params?.user) {
                   setMyId(route.params.user.id);
                   setMyName(route.params.user.name || 'User');
-                  setIsAdmin(route.params.user.role === 'admin'); 
+                  
+                  // 🚀 FIXED: MAKE SURE ADMIN STRING IS LOWERCASE SO BYPASS WORKS 🚀
+                  setIsAdmin(route.params.user.role?.toLowerCase() === 'admin'); 
+                  
                   setIsVip(route.params.user.is_vip || false);
                   
                   // LOAD MESSAGE COUNT DIRECTLY FROM DB LOGIN
@@ -784,6 +795,7 @@ export default function App() {
                                   item={item} 
                                   onSelect={handleProfileView} 
                                   onToggleLike={toggleLike} 
+                                  myId={myId} /* 🚀 PASSED MY ID TO USER CARD SO REPORT/BLOCK WORKS */
                                 />
                               )} 
                               numColumns={2} 
@@ -883,7 +895,6 @@ export default function App() {
                             </Text>
                           </View>
                         )}
-
                       </View>
                     )}
 
@@ -944,6 +955,7 @@ export default function App() {
                                 item={item} 
                                 onSelect={handleProfileView} 
                                 onToggleLike={toggleLike} 
+                                myId={myId} 
                               />
                             )} 
                             numColumns={2} 
@@ -966,6 +978,7 @@ export default function App() {
                                     item={item} 
                                     onSelect={handleProfileView} 
                                     onToggleLike={toggleLike} 
+                                    myId={myId} 
                                   />
                                 )} 
                                 numColumns={2} 

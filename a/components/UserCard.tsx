@@ -4,7 +4,8 @@ import { SafetyMenu } from './SafetyMenu'; // 🚀 IMPORTED HERE
 
 const { width } = Dimensions.get('window');
 
-export const UserCard = ({ item, onSelect, onToggleLike }: any) => {
+// 🚀 ADDED myId PROP 🚀
+export const UserCard = ({ item, onSelect, onToggleLike, myId }: any) => {
   return (
     <View 
       className="h-[260px] m-[7px] rounded-[18px] overflow-hidden bg-gray-50 shadow-sm elevation-3"
@@ -18,9 +19,9 @@ export const UserCard = ({ item, onSelect, onToggleLike }: any) => {
         </View>
       </TouchableOpacity>
 
-      {/* 🚀 THE NEW REPORT/BLOCK BUTTON (TOP LEFT) */}
+      {/* 🚀 PASS MY ID TO SAFETY MENU SO BACKEND KNOWS WHO IS BLOCKING 🚀 */}
       <View className="absolute top-2.5 left-2.5">
-        <SafetyMenu viewedUserId={item.id} />
+        <SafetyMenu viewedUserId={item.id} myId={myId} />
       </View>
 
       <TouchableOpacity 

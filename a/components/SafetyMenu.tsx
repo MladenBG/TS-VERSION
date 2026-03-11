@@ -1,79 +1,79 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert, Modal } from 'react-native';
+import React from 'react';
+import { View, TouchableOpacity, Text, Alert } from 'react-native';
 
-export const SafetyMenu = ({ viewedUserId }: { viewedUserId: string }) => {
-  const [showMenu, setShowMenu] = useState(false);
-  const currentUserId = "my_test_id"; // We will link this to your real profile later!
+const API_URL = "http://10.0.2.2:3001";
 
-  const handleBlock = async () => {
-    try {
-      const response = await fetch('http://192.168.8.104:3001/api/block', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blockerId: currentUserId, blockedId: viewedUserId })
-      });
-      if (response.ok) {
-        Alert.alert("Blocked", "You will no longer see this person on DateRoot.");
-        setShowMenu(false);
-      }
-    } catch (e) {
-      Alert.alert("Error", "Could not block user.");
-    }
-  };
-
-  const submitReport = async (reason: string) => {
-    try {
-      const response = await fetch('http://192.168.8.104:3001/api/report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reporterId: currentUserId, reportedId: viewedUserId, reason })
-      });
-      if (response.ok) {
-        Alert.alert("Reported", "Our admin team will review this profile.");
-        setShowMenu(false);
-      }
-    } catch (e) {
-      Alert.alert("Error", "Could not send report.");
-    }
-  };
-
+export const SafetyMenu = ({ viewedUserId, myId }: any) => {
   const handleReport = () => {
-    Alert.alert("Report User", "Why are you reporting this profile?", [
-      { text: "Inappropriate Content", onPress: () => submitReport("Inappropriate Content") },
-      { text: "Fake Profile / Spam", onPress: () => submitReport("Fake Profile") },
-      { text: "Harassment", onPress: () => submitReport("Harassment") },
+    Alert.alert("Report User", "Are you sure you want to report this user?", [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "Report", 
+        style: "destructive", 
+        onPress: async () => {
+          try {
+            await fetch(`${API_URL}/api/report`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                reporterId: myId, 
+                reportedId: viewedUserId, 
+                reason: "Inappropriate behavior on profile" 
+              })
+            });
+            Alert.alert("Reported", "The admin team has been notified.");
+          } catch (e) {
+            console.error("Report failed:", e);
+          }
+        } 
+      }
+    ]);
+  };
+
+  const handleBlock = () => {
+    Alert.alert("Block User", "Are you sure you want to block this user?", [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "Block", 
+        style: "destructive", 
+        onPress: async () => {
+          try {
+            await fetch(`${API_URL}/api/block`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                blockerId: myId, 
+                blockedId: viewedUserId 
+              })
+            });
+            Alert.alert("Blocked", "User has been blocked successfully.");
+          } catch (e) {
+            console.error("Block failed:", e);
+          }
+        } 
+      }
+    ]);
+  };
+
+  const showMenu = () => {
+    if (!myId) {
+       Alert.alert("Error", "You must be fully logged in to perform this action.");
+       return;
+    }
+    
+    Alert.alert("Safety Options", "What would you like to do?", [
+      { text: "Report User", style: "destructive", onPress: handleReport },
+      { text: "Block User", style: "destructive", onPress: handleBlock },
       { text: "Cancel", style: "cancel" }
     ]);
   };
 
   return (
-    <>
-      <TouchableOpacity 
-        onPress={() => setShowMenu(true)} 
-        className="w-8 h-8 bg-black/40 rounded-full items-center justify-center"
-      >
-        <Text className="text-white text-lg font-bold leading-none -mt-1">⋮</Text>
-      </TouchableOpacity>
-
-      <Modal visible={showMenu} transparent animationType="slide">
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-white rounded-t-3xl p-6 pb-10">
-            <Text className="text-xl font-black text-center mb-6 text-gray-800">Safety Options</Text>
-            
-            <TouchableOpacity onPress={handleReport} className="bg-red-50 p-4 rounded-xl border border-red-200 mb-3 items-center">
-              <Text className="text-red-600 font-bold text-lg">🚩 Report User</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={handleBlock} className="bg-gray-100 p-4 rounded-xl border border-gray-200 mb-3 items-center">
-              <Text className="text-gray-700 font-bold text-lg">🚫 Block User</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => setShowMenu(false)} className="p-4 items-center mt-2">
-              <Text className="text-gray-500 font-bold text-lg">Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </>
+    <TouchableOpacity 
+      onPress={showMenu} 
+      className="bg-black/50 w-8 h-8 rounded-full items-center justify-center shadow-sm"
+    >
+      <Text className="text-white text-lg font-bold mb-1">⋮</Text>
+    </TouchableOpacity>
   );
 };

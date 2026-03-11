@@ -3,32 +3,37 @@ import type { Request, Response } from "express";
 import http from "http";
 import { Server, Socket } from "socket.io";
 import cors from "cors";
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 // @ts-ignore
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { Pool } from 'pg'; 
-import * as dotenv from 'dotenv';
-import bcrypt from 'bcrypt';
+import { Pool } from "pg"; 
+import * as dotenv from "dotenv";
+import bcrypt from "bcrypt";
 
+// Initialize Environment Variables
 dotenv.config();
 
+// Setup Express and HTTP Server
 const app = express();
 const server = http.createServer(app);
 
+// Middleware Configuration
 app.use(cors());
 app.use(express.json());
 
-app.use((req, res, next) => {
+// Request Logger
+app.use((req: Request, res: Response, next: Function) => {
   console.log(`[${req.method}] request received at: ${req.url}`);
   next();
 });
 
+// Database Connection Setup
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:YOUR_DB_PASSWORD@127.0.0.1:5432/dateroot',
   connectionTimeoutMillis: 5000, 
 });
 
-pool.connect((err, client, release) => {
+pool.connect((err: any, client: any, release: any) => {
   if (err) {
     console.error('DATABASE CONNECTION FAILED. Is PostgreSQL running?', err.message);
   } else {
@@ -37,6 +42,7 @@ pool.connect((err, client, release) => {
   }
 });
 
+// Socket.io Setup
 const io = new Server(server, {
   cors: {
     origin: "*", 
@@ -44,6 +50,7 @@ const io = new Server(server, {
   }
 });
 
+// Cloudflare R2 S3 Client Setup
 const s3 = new S3Client({
   region: 'auto',
   endpoint: `https://9751fff4aee9e644766dfa510fedd00f.r2.cloudflarestorage.com`,
@@ -53,6 +60,7 @@ const s3 = new S3Client({
   },
 });
 
+// Type Interfaces
 interface UserUpdatePayload {
     userId: string;
     imageUrl: string;
@@ -69,6 +77,9 @@ interface BlockPayload {
     blockedId: string;
 }
 
+// ==========================================================
+// AUTHENTICATION ROUTES
+// ==========================================================
 app.post('/api/auth/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
   
@@ -110,6 +121,9 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
   }
 });
 
+// ==========================================================
+// UPLOAD ROUTES
+// ==========================================================
 app.get('/api/get-upload-url', async (req: Request, res: Response) => {
   try {
     const fileName = `profile_${Date.now()}_${Math.floor(Math.random() * 10000)}.webp`;
@@ -133,18 +147,45 @@ app.get('/api/get-upload-url', async (req: Request, res: Response) => {
   }
 });
 
+// ==========================================================
+// USER ROUTES (DISCOVERY FEED)
+// ==========================================================
 app.get('/api/users', async (req: Request, res: Response) => {
+  const myId = req.query.my_id as string;
+  
   try {
-    const query = `
-      SELECT u.*, 
-      COALESCE(
-        (SELECT json_agg(image_url) FROM gallery_images WHERE user_id = u.id), 
-        '[]'
-      ) AS gallery
-      FROM users u
-      ORDER BY u.created_at DESC
-    `;
-    const result = await pool.query(query);
+    let query = '';
+    let params: any[] = [];
+    
+    if (myId) {
+      query = `
+        SELECT u.*, 
+        COALESCE(
+          (SELECT json_agg(image_url) FROM gallery_images WHERE user_id = u.id), 
+          '[]'
+        ) AS gallery
+        FROM users u
+        WHERE u.id NOT IN (
+            SELECT blocked_id FROM blocks WHERE blocker_id = $1
+            UNION
+            SELECT blocker_id FROM blocks WHERE blocked_id = $1
+        )
+        ORDER BY u.created_at DESC
+      `;
+      params = [myId];
+    } else {
+      query = `
+        SELECT u.*, 
+        COALESCE(
+          (SELECT json_agg(image_url) FROM gallery_images WHERE user_id = u.id), 
+          '[]'
+        ) AS gallery
+        FROM users u
+        ORDER BY u.created_at DESC
+      `;
+    }
+    
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err: any) {
     console.error("Fetch Users Error:", err);
@@ -165,7 +206,11 @@ app.post('/api/users/update-image', async (req: Request, res: Response) => {
       'UPDATE users SET image = $1, last_ip = $2 WHERE id = $3', 
       [imageUrl, userIp, userId]
     );
-    res.json({ success: true, message: "Database updated with new image and IP", ip: userIp });
+    res.json({ 
+      success: true, 
+      message: "Database updated with new image and IP", 
+      ip: userIp 
+    });
   } catch (error) {
     console.error("DB Update Error:", error);
     res.status(500).json({ error: "Failed to update database" });
@@ -208,10 +253,23 @@ app.post('/api/users/update-profile', async (req: Request, res: Response) => {
     `;
 
     const values = [
-      name || null, bio || null, hereFor || null, city || null, country || null, 
-      music || null, education || null, sexuality || null, bodyType || null, 
-      hairColor || null, eyeColor || null, weight || null, height || null, 
-      day || null, month || null, year || null, userId
+      name || null, 
+      bio || null, 
+      hereFor || null, 
+      city || null, 
+      country || null, 
+      music || null, 
+      education || null, 
+      sexuality || null, 
+      bodyType || null, 
+      hairColor || null, 
+      eyeColor || null, 
+      weight || null, 
+      height || null, 
+      day || null, 
+      month || null, 
+      year || null, 
+      userId
     ];
 
     const result = await pool.query(updateQuery, values);
@@ -227,6 +285,9 @@ app.post('/api/users/update-profile', async (req: Request, res: Response) => {
   }
 });
 
+// ==========================================================
+// GALLERY ROUTES
+// ==========================================================
 app.post('/api/gallery/add', async (req: Request, res: Response) => {
   const { userId, imageUrl } = req.body as UserUpdatePayload;
   try {
@@ -255,6 +316,9 @@ app.post('/api/gallery/remove', async (req: Request, res: Response) => {
   }
 });
 
+// ==========================================================
+// ADMIN DASHBOARD ROUTES
+// ==========================================================
 app.post('/api/admin/action', async (req: Request, res: Response) => {
   const { action, target_id } = req.body;
   try {
@@ -334,12 +398,52 @@ app.post('/api/admin/resolve-report', async (req: Request, res: Response) => {
   }
 });
 
-// 🚀 FIXED: PROPER BLOCK ROUTE THAT SAVES TO DATABASE 🚀
+app.get('/api/admin/reports', async (req: Request, res: Response) => {
+  try {
+    // 🚀 FIXED: JOINS USERS TABLE SO FRONTEND CAN SEE THE ACTUAL NAMES 🚀
+    const result = await pool.query(`
+      SELECT 
+        r.id, 
+        r.reporter_id, 
+        r.reported_id, 
+        r.reason, 
+        r.status, 
+        r.created_at, 
+        u1.name AS reporter_name, 
+        u2.name AS reported_name 
+      FROM reports r 
+      LEFT JOIN users u1 ON r.reporter_id = u1.id 
+      LEFT JOIN users u2 ON r.reported_id = u2.id 
+      WHERE r.status = 'pending' OR r.status IS NULL
+      ORDER BY r.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch reports" });
+  }
+});
+
+app.get('/api/admin/ip-logs', async (req: Request, res: Response) => {
+    try {
+      const result = await pool.query('SELECT name, email, last_ip, created_at FROM users WHERE last_ip IS NOT NULL');
+      res.json(result.rows);
+    } catch (error) {
+      res.status(500).json({ error: "Could not fetch IP logs" });
+    }
+});
+
+// ==========================================================
+// BLOCKING AND REPORTING ROUTES
+// ==========================================================
+
 app.post('/api/block', async (req: Request, res: Response) => {
   const { blockerId, blockedId } = req.body as BlockPayload;
   try {
+    // 🚀 FIXED: AVOIDS CRASHING IF USER CLICKS BLOCK TWICE 🚀
     await pool.query(
-      'INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING',
+      `INSERT INTO blocks (blocker_id, blocked_id, created_at) 
+       VALUES ($1, $2, NOW()) 
+       ON CONFLICT DO NOTHING`,
       [blockerId, blockedId]
     );
     res.json({ success: true, message: "User blocked successfully" });
@@ -376,57 +480,48 @@ app.get('/api/blocks/:userId', async (req: Request, res: Response) => {
   }
 });
 
-// 🚀 FIXED: PROPER REPORT ROUTE THAT SAVES TO DATABASE 🚀
 app.post('/api/report', async (req: Request, res: Response) => {
   const { reporterId, reportedId, reason } = req.body as ReportPayload;
   try {
+    // 🚀 FIXED: SETS DEFAULT STATUS SO ADMIN DASHBOARD FINDS IT 🚀
     await pool.query(
-      'INSERT INTO reports (reporter_id, reported_id, reason, created_at) VALUES ($1, $2, $3, NOW())',
+      `INSERT INTO reports (reporter_id, reported_id, reason, status, created_at) 
+       VALUES ($1, $2, $3, 'pending', NOW())`,
       [reporterId, reportedId, reason]
     );
     res.json({ success: true, message: "Report sent" });
   } catch (error) {
+    console.error("Report Error:", error);
     res.status(500).json({ error: "Failed to report user" });
   }
 });
 
-// 🚀 FIXED: ADMIN NOW GETS USERNAMES INSTEAD OF JUST UUIDS 🚀
-app.get('/api/admin/reports', async (req: Request, res: Response) => {
-  try {
-    const result = await pool.query(`
-      SELECT r.id, r.reason, r.status, r.created_at, 
-             u1.name AS reporter_name, 
-             u2.name AS reported_name 
-      FROM reports r 
-      LEFT JOIN users u1 ON r.reporter_id = u1.id 
-      LEFT JOIN users u2 ON r.reported_id = u2.id 
-      WHERE r.status = 'pending' 
-      ORDER BY r.created_at DESC
-    `);
-    res.json(result.rows);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch reports" });
-  }
-});
-
-app.get('/api/admin/ip-logs', async (req: Request, res: Response) => {
-    try {
-      const result = await pool.query('SELECT name, email, last_ip, created_at FROM users WHERE last_ip IS NOT NULL');
-      res.json(result.rows);
-    } catch (error) {
-      res.status(500).json({ error: "Could not fetch IP logs" });
-    }
-});
-
+// ==========================================================
+// INTERACTIONS (LIKES, VIEWS, GIFTS)
+// ==========================================================
 app.post('/api/likes', async (req: Request, res: Response) => {
   const { user_id, liked_user_id } = req.body;
-  if (!user_id || !liked_user_id) return res.status(400).json({ error: "Missing IDs" });
+  
+  if (!user_id || !liked_user_id) {
+    return res.status(400).json({ error: "Missing IDs" });
+  }
+
   try {
-    const existing = await pool.query('SELECT * FROM likes WHERE user_id = $1 AND liked_user_id = $2', [user_id, liked_user_id]);
+    const existing = await pool.query(
+      'SELECT * FROM likes WHERE user_id = $1 AND liked_user_id = $2', 
+      [user_id, liked_user_id]
+    );
+
     if (existing.rows.length > 0) {
-      await pool.query('DELETE FROM likes WHERE user_id = $1 AND liked_user_id = $2', [user_id, liked_user_id]);
+      await pool.query(
+        'DELETE FROM likes WHERE user_id = $1 AND liked_user_id = $2', 
+        [user_id, liked_user_id]
+      );
     } else {
-      await pool.query('INSERT INTO likes (user_id, liked_user_id) VALUES ($1, $2)', [user_id, liked_user_id]);
+      await pool.query(
+        'INSERT INTO likes (user_id, liked_user_id) VALUES ($1, $2)', 
+        [user_id, liked_user_id]
+      );
     }
     res.json({ success: true });
   } catch (error) {
@@ -437,22 +532,35 @@ app.post('/api/likes', async (req: Request, res: Response) => {
 
 app.get('/api/likes/my-likes', async (req: Request, res: Response) => {
   try {
-    const result = await pool.query('SELECT liked_user_id FROM likes WHERE user_id = $1', [req.query.my_id]);
+    const result = await pool.query(
+      'SELECT liked_user_id FROM likes WHERE user_id = $1', 
+      [req.query.my_id]
+    );
     res.json(result.rows.map(r => r.liked_user_id));
   } catch (error) {
-    console.error("Fetch Likes Error:", error);
     res.json([]);
   }
 });
 
-app.get('/api/likes/who-liked-me', async (req: Request, res: Response) => res.json([]));
-app.get('/api/views', async (req: Request, res: Response) => res.json([]));
-app.get('/api/gifts', async (req: Request, res: Response) => res.json([]));
+app.get('/api/likes/who-liked-me', async (req: Request, res: Response) => {
+  res.json([]);
+});
+
+app.get('/api/views', async (req: Request, res: Response) => {
+  res.json([]);
+});
 
 app.post('/api/views', async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
+app.get('/api/gifts', async (req: Request, res: Response) => {
+  res.json([]);
+});
+
+// ==========================================================
+// LOBBY MESSAGES
+// ==========================================================
 app.get('/api/lobby', async (req: Request, res: Response) => {
   try {
     const result = await pool.query(`
@@ -481,10 +589,14 @@ app.get('/api/lobby', async (req: Request, res: Response) => {
 app.post('/api/lobby', async (req: Request, res: Response) => {
   const { sender_id, content } = req.body;
   try {
+    // ENFORCING PAYWALL LIMIT FROM THE SERVER
     const userRes = await pool.query('SELECT message_count, is_vip, role FROM users WHERE id = $1', [sender_id]);
+    
     if (userRes.rows.length > 0) {
         const user = userRes.rows[0];
-        if (!user.is_vip && user.role !== 'admin' && (user.message_count || 0) >= 2) {
+        const isAdmin = user.role && user.role.toLowerCase() === 'admin';
+        
+        if (!user.is_vip && !isAdmin && (user.message_count || 0) >= 2) {
             return res.status(403).json({ error: "Limit Reached" }); 
         }
     }
@@ -494,17 +606,29 @@ app.post('/api/lobby', async (req: Request, res: Response) => {
       [sender_id, content]
     );
 
-    await pool.query('UPDATE users SET message_count = COALESCE(message_count, 0) + 1 WHERE id = $1', [sender_id]);
+    await pool.query(
+      'UPDATE users SET message_count = COALESCE(message_count, 0) + 1 WHERE id = $1', 
+      [sender_id]
+    );
 
-    res.json({ success: true, id: result.rows[0].id.toString(), time: new Date().toLocaleTimeString() });
+    res.json({ 
+      success: true, 
+      id: result.rows[0].id.toString(), 
+      time: new Date().toLocaleTimeString() 
+    });
+
   } catch (error) {
     res.status(500).json({ error: "Failed to process lobby message" });
   }
 });
 
+// ==========================================================
+// PRIVATE MESSAGES
+// ==========================================================
 app.get('/api/messages', async (req: Request, res: Response) => {
   const myId = req.query.my_id as string;
   const otherId = req.query.other_id as string;
+  
   try {
     if (!myId) return res.json(otherId ? [] : {});
     
@@ -528,11 +652,13 @@ app.get('/api/messages', async (req: Request, res: Response) => {
     } else {
       const result = await pool.query(`
         SELECT id, content as text, sender_id, receiver_id, created_at
-        FROM private_messages WHERE sender_id = $1 OR receiver_id = $1
+        FROM private_messages 
+        WHERE sender_id = $1 OR receiver_id = $1
         ORDER BY created_at ASC
       `, [myId]);
 
       const grouped: Record<string, any[]> = {};
+      
       result.rows.forEach(row => {
         const oId = row.sender_id === myId ? row.receiver_id : row.sender_id;
         if (!grouped[oId]) grouped[oId] = [];
@@ -545,6 +671,7 @@ app.get('/api/messages', async (req: Request, res: Response) => {
           createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now() 
         });
       });
+      
       return res.json(grouped);
     }
   } catch (error) {
@@ -555,10 +682,26 @@ app.get('/api/messages', async (req: Request, res: Response) => {
 app.post('/api/messages', async (req: Request, res: Response) => {
   const { sender_id, receiver_id, content } = req.body;
   try {
+    
+    // 🚀 FIXED: PRIVATE MESSAGES ARE BLOCKED IF A BLOCK EXISTS 🚀
+    const blockCheck = await pool.query(
+      `SELECT id FROM blocks 
+       WHERE (blocker_id = $1 AND blocked_id = $2) 
+          OR (blocker_id = $2 AND blocked_id = $1)`,
+      [sender_id, receiver_id]
+    );
+
+    if (blockCheck.rows.length > 0) {
+        return res.status(403).json({ error: "Blocked" }); 
+    }
+
+    // ENFORCING PAYWALL LIMIT
     const userRes = await pool.query('SELECT message_count, is_vip, role FROM users WHERE id = $1', [sender_id]);
     if (userRes.rows.length > 0) {
         const user = userRes.rows[0];
-        if (!user.is_vip && user.role !== 'admin' && (user.message_count || 0) >= 2) {
+        const isAdmin = user.role && user.role.toLowerCase() === 'admin';
+
+        if (!user.is_vip && !isAdmin && (user.message_count || 0) >= 2) {
             return res.status(403).json({ error: "Limit Reached" }); 
         }
     }
@@ -568,7 +711,10 @@ app.post('/api/messages', async (req: Request, res: Response) => {
       [sender_id, receiver_id, content]
     );
 
-    await pool.query('UPDATE users SET message_count = COALESCE(message_count, 0) + 1 WHERE id = $1', [sender_id]);
+    await pool.query(
+      'UPDATE users SET message_count = COALESCE(message_count, 0) + 1 WHERE id = $1', 
+      [sender_id]
+    );
 
     res.json({ success: true });
   } catch (error) {
@@ -580,6 +726,9 @@ app.post('/api/settings/invisible', async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
+// ==========================================================
+// SOCKET.IO REALTIME EVENT LISTENERS
+// ==========================================================
 io.on("connection", (socket: Socket) => {
   console.log("Connected:", socket.id);
 
@@ -594,7 +743,6 @@ io.on("connection", (socket: Socket) => {
     else if (userData && userData.id) {
       socket.join(userData.id);    
       socket.join(userData.name);  
-      console.log(`User ID: ${userData.id} registered for private routing.`);
     }
   });
 
@@ -619,6 +767,9 @@ io.on("connection", (socket: Socket) => {
   });
 });
 
+// ==========================================================
+// START SERVER
+// ==========================================================
 const PORT = 3001; 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`DateRoot TS Server running on http://0.0.0.0:${PORT}`);

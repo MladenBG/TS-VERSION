@@ -11,7 +11,13 @@ import { View, Text, TextInput, ScrollView, Image, TouchableOpacity, Alert } fro
 const API_URL = "http://10.0.2.2:3001"; 
 // =========================================================================
 
-export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages, setMessages }: any) => {
+export const AdminDashboard = ({ 
+  profiles, 
+  setProfiles, 
+  isVip, 
+  setLobbyMessages, 
+  setMessages 
+}: any) => {
   const [adminSearch, setAdminSearch] = useState('');
   const [viewMode, setViewMode] = useState<'users' | 'reports'>('users');
   const [reports, setReports] = useState<any[]>([]);
@@ -101,54 +107,110 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages,
 
   // 🚨 NUKE CONFIRMATION DIALOGS
   const handleWipeLobby = () => {
-    Alert.alert("☢️ WIPE LOBBY", "Are you sure? This deletes ALL public messages permanently.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Wipe It", style: "destructive", onPress: () => executeAdminAction('wipe_lobby', null, "Lobby completely cleared.") }
-    ]);
+    Alert.alert(
+      "☢️ WIPE LOBBY", 
+      "Are you sure? This deletes ALL public messages permanently.", 
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Wipe It", 
+          style: "destructive", 
+          onPress: () => executeAdminAction('wipe_lobby', null, "Lobby completely cleared.") 
+        }
+      ]
+    );
   };
 
   const handleWipePrivateChats = () => {
-    Alert.alert("☢️ WIPE PRIVATE CHATS", "Are you sure? This deletes ALL private DMs between EVERY user in the app.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Wipe Everything", style: "destructive", onPress: () => executeAdminAction('wipe_private', null, "All private chats deleted.") }
-    ]);
+    Alert.alert(
+      "☢️ WIPE PRIVATE CHATS", 
+      "Are you sure? This deletes ALL private DMs between EVERY user in the app.", 
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Wipe Everything", 
+          style: "destructive", 
+          onPress: () => executeAdminAction('wipe_private', null, "All private chats deleted.") 
+        }
+      ]
+    );
   };
 
   // 🚨 BAN / UNBAN CONTROLS
   const handleBanUser = (user: any) => {
-    Alert.alert("Ban User", `Are you sure you want to ban ${user.name}?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Ban", style: "destructive", onPress: () => executeAdminAction('ban_user', user.id, `${user.name} has been banned.`) }
-    ]);
+    Alert.alert(
+      "Ban User", 
+      `Are you sure you want to ban ${user.name}?`, 
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Ban", 
+          style: "destructive", 
+          onPress: () => executeAdminAction('ban_user', user.id, `${user.name} has been banned.`) 
+        }
+      ]
+    );
   };
 
   const handleIpBlockUser = (user: any) => {
-    Alert.alert("🚫 IP BLOCK USER", `Ban ${user.name} and block their IP address permanently?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "IP BLOCK", style: "destructive", onPress: () => executeAdminAction('block_ip', user.id, `${user.name} is banned and their IP is blacklisted.`) }
-    ]);
+    Alert.alert(
+      "🚫 IP BLOCK USER", 
+      `Ban ${user.name} and block their IP address permanently?`, 
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "IP BLOCK", 
+          style: "destructive", 
+          onPress: () => executeAdminAction('block_ip', user.id, `${user.name} is banned and their IP is blacklisted.`) 
+        }
+      ]
+    );
   };
 
   const handleUnbanUser = (user: any) => {
-    Alert.alert("Unban User", `Remove ban for ${user.name}?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Unban", style: "default", onPress: () => executeAdminAction('unban_user', user.id, `${user.name} has been unbanned.`) }
-    ]);
+    Alert.alert(
+      "Unban User", 
+      `Remove ban for ${user.name}?`, 
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Unban", 
+          style: "default", 
+          onPress: () => executeAdminAction('unban_user', user.id, `${user.name} has been unbanned.`) 
+        }
+      ]
+    );
   };
 
   const handleUnblockIpUser = (user: any) => {
-    Alert.alert("Remove IP Block", `Unban ${user.name} and remove their IP from the blacklist?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Unblock IP", style: "default", onPress: () => executeAdminAction('unblock_ip', user.id, `${user.name} has been completely unblocked.`) }
-    ]);
+    Alert.alert(
+      "Remove IP Block", 
+      `Unban ${user.name} and remove their IP from the blacklist?`, 
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Unblock IP", 
+          style: "default", 
+          onPress: () => executeAdminAction('unblock_ip', user.id, `${user.name} has been completely unblocked.`) 
+        }
+      ]
+    );
   };
 
   // 🚀 NEW: ADMIN HARD DELETE
   const handleDeleteUser = (user: any) => {
-    Alert.alert("🔥 PERMANENT DELETE", `Are you sure you want to completely erase ${user.name} from the database? This cannot be undone.`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "DELETE FOREVER", style: "destructive", onPress: () => executeAdminAction('delete_user', user.id, `${user.name} was permanently deleted.`) }
-    ]);
+    Alert.alert(
+      "🔥 PERMANENT DELETE", 
+      `Are you sure you want to completely erase ${user.name} from the database? This cannot be undone.`, 
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "DELETE FOREVER", 
+          style: "destructive", 
+          onPress: () => executeAdminAction('delete_user', user.id, `${user.name} was permanently deleted.`) 
+        }
+      ]
+    );
   };
 
   const adminFiltered = profiles.filter((p: any) => 
@@ -200,10 +262,18 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages,
 
         {/* 🚀 THE TOGGLE TABS */}
         <View className="flex-row mx-5 mt-2 mb-4 border-b border-gray-200">
-          <TouchableOpacity onPress={() => setViewMode('users')} className={`flex-1 pb-3 items-center ${viewMode === 'users' ? 'border-b-2 border-green-500' : ''}`}>
-            <Text className={`font-black tracking-wider uppercase ${viewMode === 'users' ? 'text-green-500' : 'text-gray-400'}`}>User Database</Text>
+          <TouchableOpacity 
+            onPress={() => setViewMode('users')} 
+            className={`flex-1 pb-3 items-center ${viewMode === 'users' ? 'border-b-2 border-green-500' : ''}`}
+          >
+            <Text className={`font-black tracking-wider uppercase ${viewMode === 'users' ? 'text-green-500' : 'text-gray-400'}`}>
+              User Database
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setViewMode('reports')} className={`flex-1 pb-3 items-center ${viewMode === 'reports' ? 'border-b-2 border-red-500' : ''}`}>
+          <TouchableOpacity 
+            onPress={() => setViewMode('reports')} 
+            className={`flex-1 pb-3 items-center ${viewMode === 'reports' ? 'border-b-2 border-red-500' : ''}`}
+          >
             <Text className={`font-black tracking-wider uppercase ${viewMode === 'reports' ? 'text-red-500' : 'text-gray-400'}`}>
               🚨 Pending Reports
             </Text>
@@ -238,7 +308,9 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages,
                 <View key={u.id} className={`flex-row py-4 items-center ${index !== adminFiltered.length - 1 ? 'border-b border-gray-100' : ''}`}>
                   <Image source={{uri: u.image}} className="w-[50px] h-[50px] rounded-full mr-4 bg-gray-200" />
                   <View className="flex-1">
-                    <Text className={`font-black text-[16px] ${u.isBanned ? 'text-red-500 line-through' : 'text-gray-900'}`}>{u.name}, {u.age}</Text>
+                    <Text className={`font-black text-[16px] ${u.isBanned ? 'text-red-500 line-through' : 'text-gray-900'}`}>
+                      {u.name}, {u.age}
+                    </Text>
                     <Text className="text-[12px] font-semibold text-gray-500 mt-0.5">{u.town} • {u.gender}</Text>
                     <Text className="text-[10px] font-mono text-gray-400 mt-1">ID: {u.id}</Text>
                   </View>
@@ -289,22 +361,36 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages,
             </View>
           )}
 
-          {/* 🚀 REPORTS VIEW */}
+          {/* 🚀 REPORTS VIEW (FIXED TO NEVER RENDER NULL) */}
           {viewMode === 'reports' && reports.length === 0 && (
             <Text className="text-center text-gray-400 font-bold py-10">No pending reports. The app is safe!</Text>
           )}
 
           {viewMode === 'reports' && reports.map((report: any, index: number) => {
-            const reportedUser = profiles.find((p: any) => p.id === report.reported_id);
-            if (!reportedUser) return null;
+            // 🚀 FIXED: Checks local profiles, but uses DB data as a fallback!
+            const reportedUser = profiles.find((p: any) => p.id === report.reported_id) || {
+              id: report.reported_id,
+              name: report.reported_name || 'Unknown User',
+              image: 'https://via.placeholder.com/150'
+            };
+
+            // If absolutely no reported ID exists on the report, skip it
+            if (!report.reported_id) return null;
 
             return (
               <View key={report.id} className={`p-4 ${index !== reports.length - 1 ? 'border-b border-gray-100' : ''}`}>
                 <View className="flex-row items-center mb-3">
                   <Image source={{uri: reportedUser.image}} className="w-[40px] h-[40px] rounded-full mr-3 border border-gray-200" />
                   <View className="flex-1">
-                    <Text className="font-black text-gray-900 text-[16px]">{reportedUser.name} <Text className="text-red-500 font-normal text-sm">was reported</Text></Text>
+                    <Text className="font-black text-gray-900 text-[16px]">
+                      {reportedUser.name} <Text className="text-red-500 font-normal text-sm">was reported</Text>
+                    </Text>
                     <Text className="text-xs text-gray-400 font-mono mt-0.5">ID: {reportedUser.id}</Text>
+                    
+                    {/* 🚀 Shows who actually sent the report 🚀 */}
+                    <Text className="text-[10px] text-gray-500 font-bold mt-1">
+                      Reported by: {report.reporter_name || report.reporter_id || "Anonymous"}
+                    </Text>
                   </View>
                 </View>
 
@@ -314,7 +400,10 @@ export const AdminDashboard = ({ profiles, setProfiles, isVip, setLobbyMessages,
                 </View>
 
                 <View className="flex-row justify-end space-x-2">
-                  <TouchableOpacity onPress={() => handleResolveReport(report.id)} className="bg-gray-200 py-2 px-4 rounded-lg mr-2">
+                  <TouchableOpacity 
+                    onPress={() => handleResolveReport(report.id)} 
+                    className="bg-gray-200 py-2 px-4 rounded-lg mr-2"
+                  >
                     <Text className="text-gray-700 font-bold text-xs">Dismiss Report</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
