@@ -178,14 +178,39 @@ export default function App() {
     setupRevenueCat();
   }, []);
 
-  // 🚀 LOAD USERS, LOBBY, AND DATA FROM TS BACKEND 🚀
+  // =========================================================================
+  // 🚀 FIX: LOAD EVERYTHING SIMULTANEOUSLY SO LIKES AND MESSAGES DONT CRASH 🚀
+  // =========================================================================
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/users`);
-        const data = await res.json();
+        const requests = [
+          fetch(`${API_URL}/api/users`).then(r => r.json()).catch(() => []),
+          fetch(`${API_URL}/api/likes/who-liked-me`).then(r => r.json()).catch(() => []),
+          fetch(`${API_URL}/api/views`).then(r => r.json()).catch(() => []),
+          fetch(`${API_URL}/api/gifts`).then(r => r.json()).catch(() => []),
+          fetch(`${API_URL}/api/lobby`).then(r => r.json()).catch(() => [])
+        ];
+
+        if (myId) {
+          requests.push(fetch(`${API_URL}/api/messages?my_id=${myId}`).then(r => r.json()).catch(() => ({})));
+          // 🚀 THIS FIXES LIKES: Actually asks the server "who did I like?"
+          requests.push(fetch(`${API_URL}/api/likes/my-likes?my_id=${myId}`).then(r => r.json()).catch(() => []));
+        }
+
+        const results = await Promise.all(requests);
         
-        if (data && !data.error) {
+        const data = results[0];
+        const likedMe = results[1];
+        const views = results[2];
+        const gifts = results[3];
+        const lobby = results[4];
+        
+        const msgHistory = myId ? results[5] : null;
+        // 🚀 BULLETPROOF ARRAY CHECK FOR LIKES
+        const myLikesData = (myId && Array.isArray(results[6])) ? results[6] : [];
+
+        if (data && Array.isArray(data)) {
           const formattedProfiles = data.map((u: any) => ({
             id: u.id,
             name: u.name,
@@ -196,7 +221,7 @@ export default function App() {
             sexuality: u.sexuality || 'Straight',
             bio: u.bio || '',
             is_vip: u.is_vip,
-            isFavorite: u.isFavorite, 
+            isFavorite: myLikesData.includes(u.id), // 🚀 PAINTS THE HEARTS ON SCREEN
             distance: Math.floor(Math.random() * 10) + 1,
             isBanned: false,
             friends: u.friends || [],
@@ -208,30 +233,14 @@ export default function App() {
           setProfiles(formattedProfiles);
         }
 
-        const likedRes = await fetch(`${API_URL}/api/likes/who-liked-me`);
-        const likedData = await likedRes.json();
-        if (!likedData.error) setLikedMeProfiles(likedData);
+        if (Array.isArray(likedMe)) setLikedMeProfiles(likedMe);
+        if (Array.isArray(views)) setViewedMeProfiles(views);
+        if (Array.isArray(gifts)) setReceivedGifts(gifts);
+        if (Array.isArray(lobby)) setLobbyMessages(lobby);
 
-        const viewsRes = await fetch(`${API_URL}/api/views`);
-        const viewsData = await viewsRes.json();
-        if (!viewsData.error) setViewedMeProfiles(viewsData);
-
-        const giftsRes = await fetch(`${API_URL}/api/gifts`);
-        const giftsData = await giftsRes.json();
-        if (!giftsData.error) setReceivedGifts(giftsData);
-
-        const lobbyRes = await fetch(`${API_URL}/api/lobby`);
-        const lobbyData = await lobbyRes.json();
-        if (!lobbyData.error && Array.isArray(lobbyData)) {
-           setLobbyMessages(lobbyData);
-        }
-
-        if (myId) {
-          const msgRes = await fetch(`${API_URL}/api/messages?my_id=${myId}`);
-          const msgData = await msgRes.json();
-          if (!msgData.error) {
-            setMessages(msgData);
-          }
+        // 🚀 PREVENTS RED SCREEN DMs CRASH 
+        if (msgHistory && !msgHistory.error) {
+          setMessages(msgHistory);
         }
 
       } catch (error) {
@@ -242,18 +251,21 @@ export default function App() {
     fetchInitialData();
   }, [myId]);
 
-  // 🚀 CHAT HISTORY LOADER
+  // 🚀 CHAT HISTORY LOADER (BULLETPROOF ARRAY ENFORCEMENT)
   useEffect(() => {
     if (chatUser && myId) {
       const fetchChatHistory = async () => {
         try {
           const res = await fetch(`${API_URL}/api/messages?my_id=${myId}&other_id=${chatUser.id}`);
           const history = await res.json();
-          if (!history.error) {
-            setMessages(prev => ({ ...prev, [chatUser.id]: history }));
-          }
+          // 🚀 ENFORCE ARRAY: Fixes "Iterator not callable" crash
+          setMessages(prev => ({ 
+            ...prev, 
+            [chatUser.id]: Array.isArray(history) ? history : [] 
+          }));
         } catch (error) {
           console.error("Failed to fetch messages:", error);
+          setMessages(prev => ({ ...prev, [chatUser.id]: [] }));
         }
       };
       fetchChatHistory();
@@ -303,7 +315,6 @@ export default function App() {
   // 🚀 SOCKET INITIALIZATION & UUID REGISTRATION 🚀
   useEffect(() => {
     if (myId && myName) {
-      // REGISTER WITH UUID OBJECT FOR TS BACKEND
       socket.emit("register_user", { id: myId, name: myName }); 
       console.log("Registered on Socket with ID:", myId);
     }
@@ -427,6 +438,7 @@ export default function App() {
     }
   };
 
+  // 🚀 LIKE SENDING ENGINE
   const toggleLike = async (liked_user_id: string) => {
     setProfiles(prev => prev.map(p => 
       p.id === liked_user_id ? { ...p, isFavorite: !p.isFavorite } : p
@@ -436,7 +448,7 @@ export default function App() {
       await fetch(`${API_URL}/api/likes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ liked_user_id: liked_user_id })
+        body: JSON.stringify({ user_id: myId, liked_user_id: liked_user_id })
       });
     } catch (error) {
       console.error("Database connection failed for like:", error);
@@ -467,37 +479,40 @@ export default function App() {
     return true;
   };
 
-// 🚀 SEND MESSAGE SYNCED WITH TS BACKEND UUIDs
-  // 🚀 SEND MESSAGE SYNCED WITH TS BACKEND
+  // 🚀 SEND MESSAGE SYNCED WITH TS BACKEND (FIXED WHITE SCREEN)
   const handleSendMessage = async () => {
     if (!chatInput.trim() || !chatUser || !myId) return;
     
     const textToSend = chatInput;
     setChatInput('');
 
-    // 🚀 FIX: Create a guaranteed unique string ID for the React Key
-    const tempId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // 🚀 Unique string keys for React list
+    const tempId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     const newMsg = { 
-      _id: tempId, // 🚀 This unique string fixes the "key" error
+      _id: tempId, 
+      id: tempId, // Double check key props
       text: textToSend, 
       sender: 'me',
-      createdAt: new Date()
+      createdAt: new Date().toISOString() // 🚀 STRING timestamp prevents fatal White Screen crash
     };
 
-    // 🚀 DRAW INSTANTLY on your screen
-    setMessages(prev => ({
-      ...prev,
-      [chatUser.id]: [...(prev[chatUser.id] || []), newMsg]
-    }));
+    // 🚀 Safe array spread prevents "Iterator not callable"
+    setMessages(prev => {
+      const existingMessages = Array.isArray(prev[chatUser.id]) ? prev[chatUser.id] : [];
+      return {
+        ...prev,
+        [chatUser.id]: [...existingMessages, newMsg]
+      };
+    });
 
-    // Send via socket to the other person
+    // Send via socket
     socket.emit("private_message", { 
       receiverId: chatUser.id, 
       messageData: newMsg 
     });
 
-    // Save to the real database table: private_messages
+    // Database save
     try {
       await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
@@ -512,6 +527,7 @@ export default function App() {
       console.error("Failed to save private message:", e);
     }
   };
+
   const sendLobbyMessage = async () => {
     if (!lobbyInput.trim() || !myName || !myId) return; 
     

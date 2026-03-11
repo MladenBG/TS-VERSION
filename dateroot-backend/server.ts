@@ -1,6 +1,5 @@
-// File: dateroot-backend/server.ts
 import express from "express";
-import type { Request, Response } from "express"; // 🚀 Added 'type' to prevent nodemon crashes
+import type { Request, Response } from "express"; 
 import http from "http";
 import { Server, Socket } from "socket.io";
 import cors from "cors";
@@ -16,38 +15,28 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Enable CORS for API requests
 app.use(cors());
 app.use(express.json());
 
-// ==========================================
-// 🚀 TRACKER: SEE ALL APP REQUESTS IN TERMINAL
-// ==========================================
 app.use((req, res, next) => {
-  console.log(`➡️  [${req.method}] request received at: ${req.url}`);
+  console.log(`[${req.method}] request received at: ${req.url}`);
   next();
 });
 
-// ==========================================
-// 🚀 POSTGRESQL DATABASE CONNECTION 🚀
-// ==========================================
 const pool = new Pool({
-  // 🚨 REPLACE "YOUR_DB_PASSWORD" WITH YOUR ACTUAL POSTGRES PASSWORD! 🚨
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:YOUR_DB_PASSWORD@127.0.0.1:5432/dateroot',
   connectionTimeoutMillis: 5000, 
 });
 
-// Test the connection immediately so we know if it's broken
 pool.connect((err, client, release) => {
   if (err) {
-    console.error('❌ DATABASE CONNECTION FAILED. Is PostgreSQL running?', err.message);
+    console.error('DATABASE CONNECTION FAILED. Is PostgreSQL running?', err.message);
   } else {
-    console.log('✅ DATABASE CONNECTED SUCCESSFULLY');
+    console.log('DATABASE CONNECTED SUCCESSFULLY');
     release();
   }
 });
 
-// Enable CORS for Socket.io
 const io = new Server(server, {
   cors: {
     origin: "*", 
@@ -55,9 +44,6 @@ const io = new Server(server, {
   }
 });
 
-// ==========================================
-// 🚀 CLOUDFLARE R2 CONFIGURATION 🚀
-// ==========================================
 const s3 = new S3Client({
   region: 'auto',
   endpoint: `https://9751fff4aee9e644766dfa510fedd00f.r2.cloudflarestorage.com`,
@@ -67,9 +53,6 @@ const s3 = new S3Client({
   },
 });
 
-// ==========================================
-// 🚀 INTERFACES 🚀
-// ==========================================
 interface UserUpdatePayload {
     userId: string;
     imageUrl: string;
@@ -86,9 +69,6 @@ interface BlockPayload {
     blockedId: string;
 }
 
-// ==========================================
-// 🚀 AUTHENTICATION ROUTES (LOGIN/REGISTER)
-// ==========================================
 app.post('/api/auth/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
   
@@ -104,19 +84,15 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     }
 
     const user = result.rows[0];
-    
-    // 🚀 SAFELY GRAB THE PASSWORD 
     const dbPassword = user.password || user.password_hash; 
     
-    // 🚀 PREVENT BCRYPT CRASH
     if (!dbPassword) {
       return res.status(401).json({ error: "This user has no password set in the database." });
     }
 
     let isValid = false;
-    
-    // 🚀 SMART CHECK: Prevent crash by checking if it's an old plain-text password or a new hash
     const dbPasswordStr = String(dbPassword);
+    
     if (dbPasswordStr.startsWith('$2b$') || dbPasswordStr.startsWith('$2a$')) {
       isValid = await bcrypt.compare(password, dbPasswordStr); 
     } else {
@@ -134,8 +110,6 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
   }
 });
 
-
-// 🚀 GENERATE CLOUDFLARE UPLOAD TICKET 
 app.get('/api/get-upload-url', async (req: Request, res: Response) => {
   try {
     const fileName = `profile_${Date.now()}_${Math.floor(Math.random() * 10000)}.webp`;
@@ -159,7 +133,6 @@ app.get('/api/get-upload-url', async (req: Request, res: Response) => {
   }
 });
 
-// 🚀 1. FETCH ALL USERS (Includes Gallery and Joined Date)
 app.get('/api/users', async (req: Request, res: Response) => {
   try {
     const query = `
@@ -179,7 +152,6 @@ app.get('/api/users', async (req: Request, res: Response) => {
   }
 });
 
-// 🚀 2. SAVE NEW PROFILE PICTURE + CAPTURE IP 
 app.post('/api/users/update-image', async (req: Request, res: Response) => {
   const { userId, imageUrl } = req.body as UserUpdatePayload;
   const userIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
@@ -200,7 +172,6 @@ app.post('/api/users/update-image', async (req: Request, res: Response) => {
   }
 });
 
-// 🚀 3. ADD IMAGE TO PERMANENT GALLERY 
 app.post('/api/gallery/add', async (req: Request, res: Response) => {
   const { userId, imageUrl } = req.body as UserUpdatePayload;
   try {
@@ -215,7 +186,6 @@ app.post('/api/gallery/add', async (req: Request, res: Response) => {
   }
 });
 
-// 🚀 4. REMOVE IMAGE FROM PERMANENT GALLERY 
 app.post('/api/gallery/remove', async (req: Request, res: Response) => {
   const { userId, imageUrl } = req.body as UserUpdatePayload;
   try {
@@ -230,9 +200,85 @@ app.post('/api/gallery/remove', async (req: Request, res: Response) => {
   }
 });
 
-// ==========================================
-// 🚀 TRUST & SAFETY API 
-// ==========================================
+app.post('/api/admin/action', async (req: Request, res: Response) => {
+  const { action, target_id } = req.body;
+  try {
+    if (action === 'wipe_lobby') {
+      await pool.query('DELETE FROM lobby_messages');
+      return res.json({ success: true });
+    }
+    
+    if (action === 'wipe_private') {
+      await pool.query('DELETE FROM private_messages');
+      return res.json({ success: true });
+    }
+    
+    if (action === 'ban_user') {
+      await pool.query('UPDATE users SET is_banned = true WHERE id = $1', [target_id]);
+      return res.json({ success: true });
+    }
+    
+    if (action === 'unban_user') {
+      await pool.query('UPDATE users SET is_banned = false WHERE id = $1', [target_id]);
+      return res.json({ success: true });
+    }
+    
+    if (action === 'block_ip') {
+      const userRes = await pool.query('SELECT last_ip FROM users WHERE id = $1', [target_id]);
+      
+      if (userRes.rows.length > 0 && userRes.rows[0].last_ip) {
+        const targetIp = userRes.rows[0].last_ip;
+        
+        try {
+          await pool.query(`
+            INSERT INTO banned_ips (ip_address) 
+            VALUES ($1) 
+            ON CONFLICT DO NOTHING
+          `, [targetIp]);
+        } catch (ignoreErr) { 
+          console.log("Note: Could not insert into banned_ips.", ignoreErr); 
+        }
+      }
+      
+      await pool.query('UPDATE users SET is_banned = true WHERE id = $1', [target_id]);
+      return res.json({ success: true });
+    }
+    
+    if (action === 'unblock_ip') {
+      const userRes = await pool.query('SELECT last_ip FROM users WHERE id = $1', [target_id]);
+      
+      if (userRes.rows.length > 0 && userRes.rows[0].last_ip) {
+        try {
+          await pool.query('DELETE FROM banned_ips WHERE ip_address = $1', [userRes.rows[0].last_ip]);
+        } catch (ignoreErr) {}
+      }
+      
+      await pool.query('UPDATE users SET is_banned = false WHERE id = $1', [target_id]);
+      return res.json({ success: true });
+    }
+    
+    if (action === 'delete_user') {
+      await pool.query('DELETE FROM users WHERE id = $1', [target_id]);
+      return res.json({ success: true });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Admin Action Error:", error);
+    res.status(500).json({ error: "Failed to execute admin action" });
+  }
+});
+
+app.post('/api/admin/resolve-report', async (req: Request, res: Response) => {
+  const { reportId } = req.body;
+  try {
+    await pool.query('DELETE FROM reports WHERE id = $1', [reportId]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to resolve report" });
+  }
+});
+
 app.post('/api/block', async (req: Request, res: Response) => {
   const { blockerId, blockedId } = req.body as BlockPayload;
   try {
@@ -277,18 +323,37 @@ app.get('/api/admin/ip-logs', async (req: Request, res: Response) => {
     }
 });
 
-// ==========================================
-// 🚀 FALLBACK GET ROUTES FOR MISSING TABLES (Speeds up app load)
-// ==========================================
+app.post('/api/likes', async (req: Request, res: Response) => {
+  const { user_id, liked_user_id } = req.body;
+  if (!user_id || !liked_user_id) return res.status(400).json({ error: "Missing IDs" });
+  try {
+    const existing = await pool.query('SELECT * FROM likes WHERE user_id = $1 AND liked_user_id = $2', [user_id, liked_user_id]);
+    if (existing.rows.length > 0) {
+      await pool.query('DELETE FROM likes WHERE user_id = $1 AND liked_user_id = $2', [user_id, liked_user_id]);
+    } else {
+      await pool.query('INSERT INTO likes (user_id, liked_user_id) VALUES ($1, $2)', [user_id, liked_user_id]);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Likes Error:", error);
+    res.status(500).json({ error: "Failed to toggle like" });
+  }
+});
+
+app.get('/api/likes/my-likes', async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query('SELECT liked_user_id FROM likes WHERE user_id = $1', [req.query.my_id]);
+    res.json(result.rows.map(r => r.liked_user_id));
+  } catch (error) {
+    console.error("Fetch Likes Error:", error);
+    res.json([]);
+  }
+});
+
 app.get('/api/likes/who-liked-me', (req: Request, res: Response) => res.json([]));
 app.get('/api/views', (req: Request, res: Response) => res.json([]));
 app.get('/api/gifts', (req: Request, res: Response) => res.json([]));
 
-// ==========================================
-// 🚀 REAL CHAT ROUTES (Fixed Disappearing & Sending)
-// ==========================================
-
-// GET LOBBY MESSAGES
 app.get('/api/lobby', async (req: Request, res: Response) => {
   try {
     const result = await pool.query(`
@@ -297,20 +362,23 @@ app.get('/api/lobby', async (req: Request, res: Response) => {
       JOIN users u ON l.sender_id = u.id
       ORDER BY l.created_at DESC LIMIT 50
     `);
-    const formatted = result.rows.reverse().map(row => ({
-      id: row.id.toString(),
-      user: row.user,
-      text: row.text,
-      time: new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }));
+    
+    const formatted = result.rows.reverse().map(row => {
+      const safeDate = row.created_at ? new Date(row.created_at) : new Date();
+      return {
+        id: row.id.toString(), 
+        user: row.user,
+        text: row.text,
+        time: safeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+    });
+    
     res.json(formatted);
   } catch (error) {
-    console.error("Lobby GET Error:", error);
     res.json([]);
   }
 });
 
-// POST LOBBY MESSAGES
 app.post('/api/lobby', async (req: Request, res: Response) => {
   const { sender_id, content } = req.body;
   try {
@@ -318,42 +386,63 @@ app.post('/api/lobby', async (req: Request, res: Response) => {
       'INSERT INTO lobby_messages (sender_id, content, created_at) VALUES ($1, $2, NOW()) RETURNING id',
       [sender_id, content]
     );
-    res.json({ success: true, id: result.rows[0].id, time: new Date().toLocaleTimeString() });
+    res.json({ success: true, id: result.rows[0].id.toString(), time: new Date().toLocaleTimeString() });
   } catch (error) {
-    console.error("Lobby POST Error:", error);
     res.status(500).json({ error: "Failed to process lobby message" });
   }
 });
 
-// GET PRIVATE MESSAGES
 app.get('/api/messages', async (req: Request, res: Response) => {
   const myId = req.query.my_id as string;
   const otherId = req.query.other_id as string;
   try {
-    if (myId && otherId) {
+    if (!myId) return res.json(otherId ? [] : {});
+    
+    if (otherId) {
       const result = await pool.query(`
-        SELECT id, content as text, sender_id as sender
+        SELECT id, content as text, sender_id, receiver_id, created_at
         FROM private_messages
-        WHERE (sender_id = $1 AND receiver_id = $2)
-           OR (sender_id = $2 AND receiver_id = $1)
+        WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
         ORDER BY created_at ASC
       `, [myId, otherId]);
-
+      
       const formatted = result.rows.map(row => ({
-        _id: row.id.toString(),
+        _id: row.id.toString(), 
+        id: row.id.toString(), 
         text: row.text,
-        sender: row.sender === myId ? 'me' : 'other'
+        sender: row.sender_id === myId ? 'me' : 'other',
+        createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now() 
       }));
       return res.json(formatted);
+      
+    } else {
+      const result = await pool.query(`
+        SELECT id, content as text, sender_id, receiver_id, created_at
+        FROM private_messages WHERE sender_id = $1 OR receiver_id = $1
+        ORDER BY created_at ASC
+      `, [myId]);
+
+      const grouped: Record<string, any[]> = {};
+      result.rows.forEach(row => {
+        const oId = row.sender_id === myId ? row.receiver_id : row.sender_id;
+        if (!grouped[oId]) grouped[oId] = [];
+        
+        grouped[oId].push({
+          _id: row.id.toString(), 
+          id: row.id.toString(), 
+          text: row.text,
+          sender: row.sender_id === myId ? 'me' : 'other',
+          createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now() 
+        });
+      });
+      return res.json(grouped);
     }
-    res.json({});
   } catch (error) {
     console.error("Messages GET Error:", error);
-    res.json({});
+    res.json(otherId ? [] : {}); 
   }
 });
 
-// POST PRIVATE MESSAGES
 app.post('/api/messages', async (req: Request, res: Response) => {
   const { sender_id, receiver_id, content } = req.body;
   try {
@@ -368,11 +457,8 @@ app.post('/api/messages', async (req: Request, res: Response) => {
   }
 });
 
-// ==========================================
-// 🚀 WEBRTC SIGNALING & CHAT 🚀
-// ==========================================
 io.on("connection", (socket: Socket) => {
-  console.log("🔌 A user connected:", socket.id);
+  console.log("Connected:", socket.id);
 
   socket.on("send_lobby_msg", (data: any) => {
     socket.broadcast.emit("receive_lobby_msg", data);
@@ -406,11 +492,11 @@ io.on("connection", (socket: Socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("❌ User disconnected:", socket.id);
+    console.log("User disconnected:", socket.id);
   });
 });
 
 const PORT = 3001; 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 DateRoot TS Server running on http://0.0.0.0:${PORT}`);
+  console.log(`DateRoot TS Server running on http://0.0.0.0:${PORT}`);
 });
