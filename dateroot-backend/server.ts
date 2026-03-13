@@ -599,6 +599,18 @@ app.post('/api/likes', async (req: Request, res: Response) => {
         'INSERT INTO likes (user_id, liked_user_id) VALUES ($1, $2)', 
         [user_id, liked_user_id]
       );
+
+      // 🚀 NEW: EMIT REAL-TIME NOTIFICATION FOR LIKES WITH USERNAME 🚀
+      const userRes = await pool.query('SELECT name FROM users WHERE id = $1', [user_id]);
+      const likerName = userRes.rows[0]?.name || 'Someone';
+
+      io.to(liked_user_id).emit("new_notification", {
+        id: `like_${Date.now()}`,
+        type: "like",
+        message: `${likerName} liked your profile!`,
+        created_at: new Date().toISOString(), // Fixed Invalid Date
+        is_read: false
+      });
     }
     res.json({ success: true });
   } catch (error) {
@@ -642,6 +654,19 @@ app.post('/api/friends', async (req: Request, res: Response) => {
        DO UPDATE SET status = 'pending'`,
       [user_id, friend_id]
     );
+
+    // 🚀 FIXED: FETCH REAL USERNAME & ADD TIMESTAMP 🚀
+    const userRes = await pool.query('SELECT name FROM users WHERE id = $1', [user_id]);
+    const senderName = userRes.rows[0]?.name || 'Someone';
+
+    io.to(friend_id).emit("new_notification", {
+      id: `req_${Date.now()}`,
+      type: "friend_request",
+      message: `${senderName} sent you a friend request!`,
+      created_at: new Date().toISOString(), // Fixed Invalid Date
+      is_read: false
+    });
+
     res.json({ success: true, message: "Friend request sent" });
   } catch (error) {
     console.error("Friend Error:", error);
@@ -652,13 +677,24 @@ app.post('/api/friends', async (req: Request, res: Response) => {
 // 🚀 FRIENDS: ACCEPT REQUEST 🚀
 app.post('/api/friends/accept', async (req: Request, res: Response) => {
   const { user_id, friend_id } = req.body;
-  // user_id = the person pressing Accept (receiver)
-  // friend_id = the person who sent the request
   try {
     await pool.query(
       "UPDATE friends SET status = 'accepted' WHERE user_id = $1 AND friend_id = $2",
       [friend_id, user_id] 
     );
+    
+    // 🚀 FIXED: FETCH REAL USERNAME & ADD TIMESTAMP 🚀
+    const userRes = await pool.query('SELECT name FROM users WHERE id = $1', [user_id]);
+    const accepterName = userRes.rows[0]?.name || 'Someone';
+
+    io.to(friend_id).emit("new_notification", {
+      id: `acc_${Date.now()}`,
+      type: "friend_accepted",
+      message: `${accepterName} accepted your friend request!`,
+      created_at: new Date().toISOString(), // Fixed Invalid Date
+      is_read: false
+    });
+
     res.json({ success: true, message: "Friend request accepted" });
   } catch (error) {
     console.error("Accept Friend Error:", error);
@@ -669,8 +705,6 @@ app.post('/api/friends/accept', async (req: Request, res: Response) => {
 // 🚀 FRIENDS: DECLINE REQUEST 🚀
 app.post('/api/friends/decline', async (req: Request, res: Response) => {
   const { user_id, friend_id } = req.body;
-  // user_id = the person pressing Decline (receiver)
-  // friend_id = the person who sent the request
   try {
     await pool.query(
       "DELETE FROM friends WHERE user_id = $1 AND friend_id = $2",
@@ -713,6 +747,7 @@ app.post('/api/friends/remove', async (req: Request, res: Response) => {
   }
 });
 
+// 🚀 GIFTS 🚀
 app.post('/api/gifts', async (req: Request, res: Response) => {
   const { sender_id, receiver_id, gift_name } = req.body;
   try {
@@ -720,6 +755,19 @@ app.post('/api/gifts', async (req: Request, res: Response) => {
       'INSERT INTO gifts (sender_id, receiver_id, gift_name, created_at) VALUES ($1, $2, $3, NOW())',
       [sender_id, receiver_id, gift_name]
     );
+
+    // 🚀 FIXED: FETCH REAL USERNAME & ADD TIMESTAMP 🚀
+    const userRes = await pool.query('SELECT name FROM users WHERE id = $1', [sender_id]);
+    const senderName = userRes.rows[0]?.name || 'Someone';
+
+    io.to(receiver_id).emit("new_notification", {
+      id: `gift_${Date.now()}`,
+      type: "gift",
+      message: `${senderName} sent you a ${gift_name}!`,
+      created_at: new Date().toISOString(), // Fixed Invalid Date
+      is_read: false
+    });
+
     res.json({ success: true });
   } catch (error) {
     console.error("Gift Error:", error);
@@ -880,12 +928,15 @@ app.post('/api/messages', async (req: Request, res: Response) => {
     }
 
     const userRes = await pool.query(
-      'SELECT message_count, is_vip, role FROM users WHERE id = $1', 
+      'SELECT name, message_count, is_vip, role FROM users WHERE id = $1', 
       [sender_id]
     );
     
+    let senderName = "Someone";
+
     if (userRes.rows.length > 0) {
         const user = userRes.rows[0];
+        senderName = user.name;
         const isAdmin = user.role && user.role.toLowerCase() === 'admin';
 
         if (!user.is_vip && !isAdmin && (user.message_count || 0) >= 2) {
@@ -902,6 +953,15 @@ app.post('/api/messages', async (req: Request, res: Response) => {
       'UPDATE users SET message_count = COALESCE(message_count, 0) + 1 WHERE id = $1', 
       [sender_id]
     );
+
+    // 🚀 NEW: INSTANT NOTIFICATION FOR PRIVATE MESSAGES WITH NAME 🚀
+    io.to(receiver_id).emit("new_notification", {
+      id: `msgnotif_${Date.now()}`,
+      type: "new_message",
+      message: `${senderName} sent you a private message!`,
+      created_at: new Date().toISOString(), // Fixed Invalid Date
+      is_read: false
+    });
 
     res.json({ success: true });
   } catch (error) {

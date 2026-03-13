@@ -20,7 +20,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createNavigationContainerRef } from '@react-navigation/native';
 import io from 'socket.io-client';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases'; 
-import { useAudioPlayer } from 'expo-audio'; // 🚀 REPLACED DEPRECATED EXPO-AV WITH EXPO-AUDIO 🚀
+import { useAudioPlayer } from 'expo-audio'; 
 
 // IMPORTS
 import { 
@@ -43,7 +43,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { CloudflareVideoCall } from './components/CloudflareVideoCall'; 
 import { Inbox } from './components/Inbox';
 import { InvisibleModeToggle } from './components/InvisibleModeToggle';
-import { Notifications } from './components/Notifications'; // 🚀 IMPORTED NEW COMPONENT
+import { Notifications } from './components/Notifications'; 
 import { HomeScreen } from './screens/HomeScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { SignUpScreen } from './screens/SignUpScreen';
@@ -79,7 +79,6 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false); 
   const [isVip, setIsVip] = useState(false);
   
-  // 🚀 DB SYNCED MESSAGE STATE (No more AsyncStorage caching hacks!) 🚀
   const [totalFreeMessages, setTotalFreeMessages] = useState(0);
 
   // --- Profile & Data State ---
@@ -133,7 +132,6 @@ export default function App() {
   // EFFECTS & DATA FETCHING
   // =========================================================================
 
-  // PROFILE LIST SYNC ENGINE
   useEffect(() => {
     if (myId && myImage) {
       setProfiles(prevProfiles => 
@@ -142,7 +140,6 @@ export default function App() {
     }
   }, [myImage, myId]);
 
-  // REVENUECAT INITIALIZATION FOR GOOGLE PLAY
   useEffect(() => {
     const setupRevenueCat = async () => {
       try {
@@ -192,8 +189,6 @@ export default function App() {
       const loadedNotifs = (myId && Array.isArray(results[7])) ? results[7] : [];
 
       if (data && Array.isArray(data)) {
-        
-        // 🚀 GRAB ACTUAL MESSAGE COUNT FROM DATABASE (HACKER-PROOF)
         const me = data.find((u: any) => u.id === myId);
         if (me && me.message_count !== undefined) {
           setTotalFreeMessages(me.message_count);
@@ -228,8 +223,8 @@ export default function App() {
             distance: Math.floor(Math.random() * 10) + 1,
             isBanned: false,
             friends: u.friends || [],
-            sent_requests: u.sent_requests || [],         // 🚀 NEW: PENDING SENT
-            received_requests: u.received_requests || [], // 🚀 NEW: PENDING RECEIVED
+            sent_requests: u.sent_requests || [],        
+            received_requests: u.received_requests || [], 
             gifts: u.gifts || [],
             gallery: u.gallery || [], 
             joinedAt: u.created_at, 
@@ -248,8 +243,11 @@ export default function App() {
         setMessages(msgHistory);
       }
 
-      setNotifications(loadedNotifs);
-      setUnreadNotifsCount(loadedNotifs.filter((n: any) => !n.is_read).length);
+      // 🚀 FIXED: PREVENTS WIPING NOTIFICATIONS ON REFRESH
+      if (loadedNotifs && loadedNotifs.length > 0) {
+        setNotifications(loadedNotifs);
+        setUnreadNotifsCount(loadedNotifs.filter((n: any) => !n.is_read).length);
+      }
 
     } catch (error) {
       console.error("Failed to load initial data:", error);
@@ -260,7 +258,6 @@ export default function App() {
     fetchInitialData();
   }, [myId]);
 
-  // 🚀 FIXED: AUTO-SYNC PROFILE MODAL SO ACCEPTED FRIENDS SHOW INSTANTLY 🚀
   useEffect(() => {
     if (selectedUser) {
       const updatedProfile = profiles.find(p => p.id === selectedUser.id);
@@ -275,7 +272,6 @@ export default function App() {
     }
   }, [profiles]);
 
-  // CHAT HISTORY LOADER
   useEffect(() => {
     if (chatUser && myId) {
       const fetchChatHistory = async () => {
@@ -330,8 +326,6 @@ export default function App() {
     }
   };
 
-  const playNotificationSound = async () => { Vibration.vibrate(); };
-
   const [swipeIndex, setSwipeIndex] = useState(0);
   const position = useRef(new Animated.ValueXY()).current;
 
@@ -349,7 +343,6 @@ export default function App() {
     }
   };
 
-  // 🚀 FETCH BLOCKED USERS LOGIC
   const fetchBlockedUsers = async () => {
     try {
       const res = await fetch(`${API_URL}/api/blocks/${myId}`);
@@ -362,7 +355,6 @@ export default function App() {
     }
   };
 
-  // 🚀 UNBLOCK USER LOGIC
   const handleUnblockUser = async (blockedId: string) => {
     try {
       await fetch(`${API_URL}/api/unblock`, {
@@ -451,6 +443,26 @@ export default function App() {
     
     socket.on("receive_lobby_msg", handleReceiveLobby);
 
+    // 🚀 FIXED: REAL-TIME PRIVATE MESSAGES LISTENER (MAIL) 🚀
+    const handleReceivePrivateMsg = (msgData: any) => {
+      // Povećaj brojač inboxa samo ako nisi trenutno u inboxu
+      if (currentTab.current !== 'inbox') {
+        setUnreadCount(prev => prev + 1);
+      }
+
+      setMessages(prev => {
+        const sId = msgData.senderId;
+        if (!sId) return prev;
+        const existing = Array.isArray(prev[sId]) ? prev[sId] : [];
+        return {
+          ...prev,
+          [sId]: [...existing, msgData]
+        };
+      });
+    };
+
+    socket.on("receive_private_msg", handleReceivePrivateMsg);
+
     const handleIncomingCall = (data: any) => {
       Vibration.vibrate([1000, 2000, 1000, 2000]); 
       
@@ -485,17 +497,68 @@ export default function App() {
 
     socket.on("incoming_call", handleIncomingCall);
 
-    const handleNewNotification = (notif: any) => {
+    // 🚀 FIXED: LIGHTWEIGHT BACKGROUND REFRESH FOR FRIEND REQUESTS 🚀
+    const handleNewNotification = async (notif: any) => {
       notificationSound.play();
       Vibration.vibrate();
       setNotifications(prev => [notif, ...prev]);
       setUnreadNotifsCount(prev => prev + 1);
+      
+      try {
+        // Povuče samo korisnike u pozadini kako bi dobio najnovije zahteve
+        const res = await fetch(`${API_URL}/api/users${myId ? `?my_id=${myId}` : ''}`);
+        const data = await res.json();
+        
+        if (data && Array.isArray(data)) {
+          setProfiles(prevProfiles => {
+            return data.map((u: any) => {
+              const oldProfile = prevProfiles.find(p => p.id === u.id);
+              let calcAge = u.age || 25;
+              if (u.dob_year) calcAge = new Date().getFullYear() - parseInt(u.dob_year);
+
+              return {
+                id: u.id,
+                name: u.name,
+                age: calcAge, 
+                town: u.city || 'Unknown',
+                country: u.country || 'Unknown',
+                image: u.image || 'https://via.placeholder.com/150',
+                gender: u.gender || 'Unknown',
+                sexuality: u.sexuality || 'Straight',
+                hereFor: u.here_for || 'Not specified',
+                bodyType: u.body_type || 'Unknown',
+                music: u.music || 'Unknown',
+                education: u.education || 'Unknown',
+                hairColor: u.hair_color || 'Unknown',
+                eyeColor: u.eye_color || 'Unknown',
+                weight: u.weight || 'Unknown',
+                height: u.height || 'Unknown',
+                bio: u.bio || '',
+                is_vip: u.is_vip,
+                isFavorite: oldProfile ? oldProfile.isFavorite : false, // Cuva lajkove
+                distance: oldProfile ? oldProfile.distance : Math.floor(Math.random() * 10) + 1,
+                isBanned: false,
+                friends: u.friends || [],
+                sent_requests: u.sent_requests || [],        
+                received_requests: u.received_requests || [], 
+                gifts: u.gifts || [],
+                gallery: u.gallery || [], 
+                joinedAt: u.created_at, 
+                lastIp: u.last_ip 
+              };
+            });
+          });
+        }
+      } catch (error) {
+        console.error("Background sync failed:", error);
+      }
     };
 
     socket.on("new_notification", handleNewNotification);
     
     return () => { 
       socket.off("receive_lobby_msg", handleReceiveLobby); 
+      socket.off("receive_private_msg", handleReceivePrivateMsg);
       socket.off("incoming_call", handleIncomingCall); 
       socket.off("new_notification", handleNewNotification);
       Vibration.cancel();
@@ -649,7 +712,6 @@ export default function App() {
         })
       });
 
-      // 🚀 CATCH 403 DB LOCK
       if (!res.ok) {
         const resData = await res.json().catch(() => ({}));
         if (resData.error === "Blocked") {
@@ -671,9 +733,10 @@ export default function App() {
         };
       });
 
+      // 🚀 FIXED: SENDS SENDER ID SO THE RECEIVER KNOWS WHO SENT IT 🚀
       socket.emit("private_message", { 
         receiverId: chatUser.id, 
-        messageData: newMsg 
+        messageData: { ...newMsg, senderId: myId, sender: 'other' } 
       });
 
       if (!isAdmin && !isVip) {
@@ -794,7 +857,7 @@ export default function App() {
       });
 
       Alert.alert("Gift Sent!", `You sent a ${giftName} to ${user.name}!`);
-      fetchInitialData(); // Re-sync the database
+      fetchInitialData(); 
     } catch (error) {
       console.error("Failed to send gift:", error);
     }
@@ -820,7 +883,7 @@ export default function App() {
   const myProfileData = profiles.find(p => p.id === myId);
   const receivedRequests = myProfileData?.received_requests || [];
   const sentRequests = myProfileData?.sent_requests || [];
-  const myGifts = myProfileData?.gifts || []; // 🚀 GRABS DB GIFTS TO FIX USER DASHBOARD
+  const myGifts = myProfileData?.gifts || []; 
 
   // =========================================================================
   // RENDER MAIN APPLICATION UI
@@ -1219,10 +1282,8 @@ export default function App() {
                               setShowPaywall={setShowPaywall} 
                               openEditProfile={() => setShowEditProfile(true)}
                               
-                              // 🚀 PASSED THE PROPER USER GIFTS TO DASHBOARD 🚀
                               receivedGifts={myGifts}
                               
-                              // 🚀 NEW PROPS ADDED SO TYPESCRIPT DOES NOT FAIL 🚀
                               onViewPublicProfile={() => {
                                 const myProfile = profiles.find(p => p.id === myId);
                                 if(myProfile) handleProfileView(myProfile);

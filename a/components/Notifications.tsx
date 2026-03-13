@@ -4,9 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface NotificationItem {
   id: string | number;
-  sender_name: string;
-  sender_image: string;
-  content: string;
+  sender_name?: string;
+  sender_image?: string;
+  content?: string;
+  message?: string; // 🚀 THIS IS THE NEW VARIABLE FROM THE SERVER
+  type?: string;    // 🚀 TELLS US IF IT IS A GIFT, MESSAGE, ETC.
   created_at: string;
   is_read: boolean;
 }
@@ -27,6 +29,18 @@ export const Notifications = ({ visible, onClose, notifications, onDelete }: Not
     (notifPage - 1) * NOTIFS_PER_PAGE, 
     notifPage * NOTIFS_PER_PAGE
   );
+
+  // 🚀 ASSIGNS AN EMOJI BASED ON THE NOTIFICATION TYPE 🚀
+  const getIconForType = (type?: string) => {
+    switch(type) {
+      case 'gift': return '🎁';
+      case 'new_message': return '💬';
+      case 'friend_request': return '👋';
+      case 'friend_accepted': return '✅';
+      case 'like': return '❤️';
+      default: return '🔔';
+    }
+  };
 
   return (
     <Modal visible={visible} animationType="slide">
@@ -52,18 +66,30 @@ export const Notifications = ({ visible, onClose, notifications, onDelete }: Not
           }
           renderItem={({item}) => (
             <View className="flex-row items-center p-4 border-b border-gray-100 mx-2 bg-gray-50 rounded-xl mb-2">
-              <Image 
-                source={{uri: item.sender_image || 'https://via.placeholder.com/150'}} 
-                className="w-12 h-12 rounded-full mr-3 border border-gray-200" 
-              />
+              
+              {/* 🚀 AVATAR OR SMART EMOJI ICON 🚀 */}
+              {item.sender_image ? (
+                <Image 
+                  source={{uri: item.sender_image}} 
+                  className="w-12 h-12 rounded-full mr-3 border border-gray-200" 
+                />
+              ) : (
+                <View className="w-12 h-12 rounded-full mr-3 bg-white border border-gray-200 items-center justify-center shadow-sm">
+                  <Text className="text-2xl">{getIconForType(item.type)}</Text>
+                </View>
+              )}
+
               <View className="flex-1">
+                {/* 🚀 DISPLAYS THE FULL MESSAGE FROM SERVER: "User sent you a gift!" 🚀 */}
                 <Text className="font-bold text-sm text-black">
-                  {item.sender_name} <Text className="font-normal text-gray-600">{item.content}</Text>
+                  {item.message || item.content || "You have a new notification"}
                 </Text>
+                
                 <Text className="text-xs text-gray-400 mt-1">
                   {new Date(item.created_at).toLocaleString()}
                 </Text>
               </View>
+
               <TouchableOpacity 
                 onPress={() => onDelete(item.id.toString())}
                 className="w-8 h-8 rounded-full bg-red-100 items-center justify-center ml-2"
