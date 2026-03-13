@@ -1,6 +1,15 @@
 import React from 'react';
 import { View, TouchableOpacity, Image, Text, TextInput } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+
+// 🚀 DEFINITION OF PNG ICONS THAT DO NOT BUG OUT (VERIFIED URLs) 🚀
+const ICONS = {
+  user: 'https://img.icons8.com/ios-glyphs/60/9CA3AF/user--v1.png',
+  bell: 'https://img.icons8.com/ios-glyphs/60/374151/bell.png', // FIXED BELL ICON
+  mail: 'https://img.icons8.com/ios-glyphs/60/374151/new-post.png',
+  logout: 'https://img.icons8.com/material-outlined/48/EF4444/logout-rounded-left.png',
+  search: 'https://img.icons8.com/ios-glyphs/60/9CA3AF/search--v1.png',
+  filter: 'https://img.icons8.com/ios-glyphs/60/374151/horizontal-settings-mixer--v1.png'
+};
 
 export const HeaderSwipe = ({ 
   logoImg, 
@@ -16,7 +25,9 @@ export const HeaderSwipe = ({
   discoveryMode, 
   setCurrentPage, 
   unreadCount, 
-  handleLogout 
+  handleLogout,
+  unreadNotifsCount, // Added for notifications
+  onOpenNotifications // Added to open notifications
 }: any) => {
   return (
     <View className="p-4 border-b border-gray-200 bg-white pt-12">
@@ -34,8 +45,8 @@ export const HeaderSwipe = ({
               className="w-12 h-12 rounded-full border-2 border-green-500 shadow-sm" 
             />
           ) : (
-            <View className="w-12 h-12 rounded-full bg-gray-200 border-2 border-gray-300 items-center justify-center shadow-sm">
-              <Feather name="user" size={20} color="#9CA3AF" />
+            <View className="w-12 h-12 rounded-full bg-gray-200 border-2 border-gray-300 items-center justify-center shadow-sm overflow-hidden">
+              <Image source={{ uri: ICONS.user }} style={{ width: 28, height: 28 }} resizeMode="contain" />
             </View>
           )}
           {isVip && (
@@ -46,22 +57,41 @@ export const HeaderSwipe = ({
         </TouchableOpacity>
 
         {/* CENTER: LOGO */}
-        <TouchableOpacity onPress={() => {setTab('discover'); setDiscoveryMode('list');}}>
-          <Image source={logoImg} className="w-[120px] h-[40px]" resizeMode="contain" />
+        <TouchableOpacity 
+          onPress={() => {setTab('discover'); setDiscoveryMode('list');}} 
+          style={{ flex: 1, alignItems: 'center' }} 
+        >
+          <Image source={logoImg} className="w-[100px] h-[35px]" resizeMode="contain" />
         </TouchableOpacity>
         
-        {/* RIGHT SIDE: ACTIONS */}
+        {/* RIGHT SIDE: ACTIONS (BELL, INBOX, LOGOUT) */}
         <View className="flex-row items-center">
           
+          {/* NOTIFICATION BELL ICON */}
+          <TouchableOpacity 
+            className="w-10 h-10 mr-2 relative justify-center items-center"
+            onPress={onOpenNotifications} 
+            activeOpacity={0.7}
+          >
+            <Image source={{ uri: ICONS.bell }} style={{ width: 26, height: 26 }} resizeMode="contain" />
+            {unreadNotifsCount > 0 && (
+              <View className="absolute top-0 right-0 bg-red-500 rounded-full w-5 h-5 justify-center items-center border-2 border-white z-10">
+                <Text className="text-white text-[10px] font-black">
+                  {unreadNotifsCount > 9 ? '9+' : unreadNotifsCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
           {/* INBOX BUTTON */}
           <TouchableOpacity 
-            className="w-10 h-10 bg-gray-50 rounded-full justify-center items-center mr-2 relative border border-gray-200 shadow-sm"
+            className="w-10 h-10 mr-2 relative justify-center items-center"
             onPress={() => setTab('inbox')}
             activeOpacity={0.7}
           >
-            <Feather name="mail" size={18} color="#374151" />
+            <Image source={{ uri: ICONS.mail }} style={{ width: 26, height: 26 }} resizeMode="contain" />
             {unreadCount > 0 && (
-              <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 justify-center items-center border-2 border-white">
+              <View className="absolute top-0 right-0 bg-red-500 rounded-full w-5 h-5 justify-center items-center border-2 border-white">
                 <Text className="text-white text-[8px] font-black">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </Text>
@@ -71,11 +101,11 @@ export const HeaderSwipe = ({
 
           {/* LOGOUT ICON */}
           <TouchableOpacity 
-            className="w-10 h-10 bg-red-50 rounded-full justify-center items-center border border-red-100 shadow-sm"
+            className="w-10 h-10 justify-center items-center"
             onPress={handleLogout}
             activeOpacity={0.7}
           >
-            <Feather name="power" size={16} color="#EF4444" />
+            <Image source={{ uri: ICONS.logout }} style={{ width: 24, height: 24 }} resizeMode="contain" />
           </TouchableOpacity>
         </View>
       </View>
@@ -85,7 +115,7 @@ export const HeaderSwipe = ({
         <>
           <View className="flex-row items-center">
             <View className="flex-1 h-[45px] bg-gray-50 border border-gray-200 rounded-xl px-4 flex-row items-center shadow-sm">
-              <Feather name="search" size={18} color="#9CA3AF" />
+              <Image source={{ uri: ICONS.search }} style={{ width: 20, height: 20 }} resizeMode="contain" />
               <TextInput 
                 className="flex-1 ml-2 text-black font-bold h-full" 
                 placeholder="Search Town, Name..." 
@@ -100,7 +130,7 @@ export const HeaderSwipe = ({
               onPress={() => setShowFilters(true)}
               activeOpacity={0.7}
             >
-              <Feather name="sliders" size={20} color="#374151" />
+              <Image source={{ uri: ICONS.filter }} style={{ width: 24, height: 24 }} resizeMode="contain" />
             </TouchableOpacity>
           </View>
 

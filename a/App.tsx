@@ -20,6 +20,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createNavigationContainerRef } from '@react-navigation/native';
 import io from 'socket.io-client';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases'; 
+import { useAudioPlayer } from 'expo-audio'; // 🚀 REPLACED DEPRECATED EXPO-AV WITH EXPO-AUDIO 🚀
 
 // IMPORTS
 import { 
@@ -42,6 +43,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { CloudflareVideoCall } from './components/CloudflareVideoCall'; 
 import { Inbox } from './components/Inbox';
 import { InvisibleModeToggle } from './components/InvisibleModeToggle';
+import { Notifications } from './components/Notifications'; // 🚀 IMPORTED NEW COMPONENT
 import { HomeScreen } from './screens/HomeScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { SignUpScreen } from './screens/SignUpScreen';
@@ -63,6 +65,8 @@ const Stack = createStackNavigator();
 export const navigationRef = createNavigationContainerRef();
 
 export default function App() {
+  const notificationSound = useAudioPlayer('https://actions.google.com/sounds/v1/ui_icons/bubble_pop.ogg');
+  
   // --- Navigation & Core State ---
   const [tab, setTab] = useState<'discover' | 'lobby' | 'favorites' | 'admin' | 'settings' | 'inbox'>('discover');
   const [favTab, setFavTab] = useState<'my_likes' | 'liked_me' | 'viewed_me'>('my_likes');
@@ -120,6 +124,11 @@ export default function App() {
   const [showFriendRequests, setShowFriendRequests] = useState(false);
   const [reqTab, setReqTab] = useState<'received' | 'sent'>('received');
 
+  // 🚀 NOTIFICATIONS STATE 🚀
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
+  const [showNotifsModal, setShowNotifsModal] = useState(false);
+
   // =========================================================================
   // EFFECTS & DATA FETCHING
   // =========================================================================
@@ -165,6 +174,9 @@ export default function App() {
         requests.push(
           fetch(`${API_URL}/api/likes/my-likes?my_id=${myId}`).then(r => r.json()).catch(() => [])
         );
+        requests.push(
+          fetch(`${API_URL}/api/notifications?my_id=${myId}`).then(r => r.json()).catch(() => [])
+        );
       }
 
       const results = await Promise.all(requests);
@@ -177,6 +189,7 @@ export default function App() {
       
       const msgHistory = myId ? results[5] : null;
       const myLikesData = (myId && Array.isArray(results[6])) ? results[6] : [];
+      const loadedNotifs = (myId && Array.isArray(results[7])) ? results[7] : [];
 
       if (data && Array.isArray(data)) {
         
@@ -235,6 +248,9 @@ export default function App() {
         setMessages(msgHistory);
       }
 
+      setNotifications(loadedNotifs);
+      setUnreadNotifsCount(loadedNotifs.filter((n: any) => !n.is_read).length);
+
     } catch (error) {
       console.error("Failed to load initial data:", error);
     }
@@ -289,6 +305,30 @@ export default function App() {
   // =========================================================================
   // APP FUNCTIONS & LOGIC
   // =========================================================================
+
+  const openNotifications = async () => {
+    setShowNotifsModal(true);
+    setUnreadNotifsCount(0);
+    try {
+      await fetch(`${API_URL}/api/notifications/mark-read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: myId })
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    } catch (error) {
+      console.error("Could not mark notifications read:", error);
+    }
+  };
+
+  const deleteNotification = async (notifId: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== notifId));
+    try {
+      await fetch(`${API_URL}/api/notifications/${notifId}`, { method: 'DELETE' });
+    } catch (error) {
+      console.error("Could not delete notification:", error);
+    }
+  };
 
   const playNotificationSound = async () => { Vibration.vibrate(); };
 
@@ -444,10 +484,20 @@ export default function App() {
     };
 
     socket.on("incoming_call", handleIncomingCall);
+
+    const handleNewNotification = (notif: any) => {
+      notificationSound.play();
+      Vibration.vibrate();
+      setNotifications(prev => [notif, ...prev]);
+      setUnreadNotifsCount(prev => prev + 1);
+    };
+
+    socket.on("new_notification", handleNewNotification);
     
     return () => { 
       socket.off("receive_lobby_msg", handleReceiveLobby); 
       socket.off("incoming_call", handleIncomingCall); 
+      socket.off("new_notification", handleNewNotification);
       Vibration.cancel();
     };
   }, [myId, myName]);
@@ -847,6 +897,8 @@ export default function App() {
                       discoveryMode={discoveryMode} 
                       unreadCount={unreadCount}
                       handleLogout={handleLogout} 
+                      unreadNotifsCount={unreadNotifsCount}
+                      onOpenNotifications={openNotifications}
                     />
                   )}
 
@@ -1376,6 +1428,13 @@ export default function App() {
                       )}
                     </SafeAreaView>
                   </Modal>
+
+                  <Notifications 
+                    visible={showNotifsModal} 
+                    onClose={() => setShowNotifsModal(false)} 
+                    notifications={notifications} 
+                    onDelete={deleteNotification} 
+                  />
 
                 </SafeAreaView>
               );

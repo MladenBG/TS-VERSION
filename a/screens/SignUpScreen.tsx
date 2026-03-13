@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TextInput, Button, Text, SegmentedButtons, Checkbox, Provider as PaperProvider, MD3LightTheme, HelperText } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
 
 const API_URL = "http://10.0.2.2:3001/api";
+
+// 🚀 DEFINITION OF PNG ICONS THAT DO NOT BUG OUT 🚀
+const ICONS = {
+  account: 'https://img.icons8.com/material-outlined/48/000000/user.png',
+  mail: 'https://img.icons8.com/material-outlined/48/000000/mail.png',
+  lock: 'https://img.icons8.com/material-outlined/48/000000/lock.png',
+  shield: 'https://img.icons8.com/material-outlined/48/000000/shield.png',
+  eye: 'https://img.icons8.com/material-outlined/48/000000/visible.png',
+  eyeOff: 'https://img.icons8.com/material-outlined/48/000000/hide.png'
+};
 
 const theme = {
   ...MD3LightTheme,
@@ -107,7 +117,8 @@ export const SignUpScreen = ({ navigation }: any) => {
                 onChangeText={setFirstName}
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                left={<TextInput.Icon icon="account" />}
+                // 🚀 INSERTED IMAGE FOR USER 🚀
+                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.account }} style={{ width: 22, height: 22 }} />} />}
               />
 
               <TextInput
@@ -117,7 +128,8 @@ export const SignUpScreen = ({ navigation }: any) => {
                 onChangeText={setLastName}
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                left={<TextInput.Icon icon="account" />}
+                // 🚀 INSERTED IMAGE FOR USER 🚀
+                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.account }} style={{ width: 22, height: 22 }} />} />}
               />
 
               <TextInput
@@ -129,7 +141,8 @@ export const SignUpScreen = ({ navigation }: any) => {
                 keyboardType="email-address"
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                left={<TextInput.Icon icon="email" />}
+                // 🚀 INSERTED IMAGE FOR EMAIL 🚀
+                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.mail }} style={{ width: 22, height: 22 }} />} />}
               />
               
               <TextInput
@@ -140,8 +153,20 @@ export const SignUpScreen = ({ navigation }: any) => {
                 secureTextEntry={!showPassword}
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                left={<TextInput.Icon icon="lock" />}
-                right={<TextInput.Icon icon={showPassword ? "eye-off" : "eye"} onPress={() => setShowPassword(!showPassword)} />}
+                // 🚀 INSERTED IMAGE FOR LOCK 🚀
+                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.lock }} style={{ width: 22, height: 22 }} />} />}
+                // 🚀 INSERTED IMAGE FOR EYE (VISIBLE/HIDE) 🚀
+                right={
+                  <TextInput.Icon 
+                    icon={() => (
+                      <Image 
+                        source={{ uri: showPassword ? ICONS.eyeOff : ICONS.eye }} 
+                        style={{ width: 22, height: 22 }} 
+                      />
+                    )} 
+                    onPress={() => setShowPassword(!showPassword)} 
+                  />
+                }
               />
               
               <View style={styles.requirementsBox}>
@@ -159,7 +184,8 @@ export const SignUpScreen = ({ navigation }: any) => {
                 secureTextEntry={!showPassword}
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                left={<TextInput.Icon icon="shield-check" />}
+                // 🚀 INSERTED IMAGE FOR SHIELD 🚀
+                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.shield }} style={{ width: 22, height: 22 }} />} />}
               />
               <HelperText type={doPasswordsMatch ? "info" : "error"} visible={(confirmPassword || "").length > 0}>
                 {doPasswordsMatch ? 'Passwords match' : 'Passwords do not match'}
@@ -187,17 +213,31 @@ export const SignUpScreen = ({ navigation }: any) => {
               />
             </View>
 
-            <Button 
-              mode="contained" 
-              onPress={handleSignUp} 
-              loading={isLoading}
-              disabled={isLoading || !isPasswordValid || !doPasswordsMatch || !is18}
-              style={styles.button}
-              contentStyle={styles.buttonContent}
-              labelStyle={styles.buttonLabel}
+            {/* 🚀 GRADIENT BUTTON 🚀 */}
+            <LinearGradient
+              colors={['#F43F5E', '#FF7A59', 'blue']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{
+                padding: 2,
+                borderRadius: 30,
+                marginTop: 10,
+              }}
             >
-              Create Account
-            </Button>
+              <Button 
+                mode="contained" 
+                onPress={handleSignUp} 
+                loading={isLoading}
+                disabled={isLoading || !isPasswordValid || !doPasswordsMatch || !is18}
+                buttonColor="#1F2937" 
+                textColor="#FFFFFF"
+                style={{ borderRadius: 30 }}
+                contentStyle={styles.buttonContent}
+                labelStyle={styles.buttonLabel}
+              >
+                Create Account
+              </Button>
+            </LinearGradient>
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Already have an account? </Text>

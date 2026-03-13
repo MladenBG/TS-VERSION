@@ -23,7 +23,9 @@
         "NSMicrophoneUsageDescription": "Dateroot needs access to your microphone for video dates."
       }
     },
-    "plugins": [],
+    "plugins": [
+      "expo-audio"
+    ],
     "newArchEnabled": false
   }
 }

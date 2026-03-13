@@ -533,3 +533,11 @@ FOR REFRESHING PROBLEMS FO MESSAGES SUBSCRIPTIONS CUNT
 
 npx expo install @react-native-async-storage/async-storage
 
+
+
+
+FOR AUDIO NOTIFICATIONS
+
+
+npx expo install expo-audio
+

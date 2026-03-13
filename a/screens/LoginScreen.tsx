@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // 🚀 IMPORTING PROFESSIONAL UI COMPONENTS
 import { TextInput, Button, Text, Provider as PaperProvider, MD3LightTheme } from 'react-native-paper';
@@ -11,6 +11,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 // =========================================================================
 const API_URL = "http://10.0.2.2:3001";
 // =========================================================================
+
+// 🚀 DEFINITION OF PNG ICONS THAT DO NOT BUG OUT 🚀
+const ICONS = {
+  mail: 'https://img.icons8.com/material-outlined/48/000000/mail.png',
+  lock: 'https://img.icons8.com/material-outlined/48/000000/lock.png',
+  eye: 'https://img.icons8.com/material-outlined/48/000000/visible.png',
+  eyeOff: 'https://img.icons8.com/material-outlined/48/000000/hide.png'
+};
 
 // Premium Rose Theme
 const theme = {
@@ -34,7 +42,7 @@ export const LoginScreen = ({ navigation }: any) => {
     }
     setIsLoading(true);
     try {
- const response = await fetch(`${API_URL}/api/auth/login`, {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.toLowerCase(), password })
@@ -43,7 +51,6 @@ export const LoginScreen = ({ navigation }: any) => {
       if (!response.ok) {
         Alert.alert("Login Failed", data.error || "Invalid credentials.");
       } else {
-        // 🚀 THE FIX: PASS THE REAL DATA TO THE MAIN SCREEN TO HIDE ADMIN DASHBOARD!
         navigation.replace('Main', { user: data.user });
       }
     } catch (error) {
@@ -70,7 +77,7 @@ export const LoginScreen = ({ navigation }: any) => {
               <Text variant="titleMedium" style={styles.subtitle}>Sign in to continue your journey.</Text>
             </View>
 
-            {/* REAL MATERIAL DESIGN INPUTS */}
+            {/* REAL MATERIAL DESIGN INPUTS USING IMAGES INSTEAD OF FONTS */}
             <View style={styles.form}>
               <TextInput
                 mode="outlined"
@@ -81,7 +88,8 @@ export const LoginScreen = ({ navigation }: any) => {
                 keyboardType="email-address"
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                left={<TextInput.Icon icon="email" />}
+                // 🚀 INSERTED IMAGE FOR EMAIL 🚀
+                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.mail }} style={{ width: 22, height: 22 }} />} />}
               />
               
               <TextInput
@@ -92,8 +100,20 @@ export const LoginScreen = ({ navigation }: any) => {
                 secureTextEntry={!showPassword}
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                left={<TextInput.Icon icon="lock" />}
-                right={<TextInput.Icon icon={showPassword ? "eye-off" : "eye"} onPress={() => setShowPassword(!showPassword)} />}
+                // 🚀 INSERTED IMAGE FOR LOCK 🚀
+                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.lock }} style={{ width: 22, height: 22 }} />} />}
+                // 🚀 INSERTED IMAGE FOR EYE (VISIBLE/HIDE) 🚀
+                right={
+                  <TextInput.Icon 
+                    icon={() => (
+                      <Image 
+                        source={{ uri: showPassword ? ICONS.eyeOff : ICONS.eye }} 
+                        style={{ width: 22, height: 22 }} 
+                      />
+                    )} 
+                    onPress={() => setShowPassword(!showPassword)} 
+                  />
+                }
               />
 
               <TouchableOpacity style={styles.forgotPassword}>
@@ -103,31 +123,30 @@ export const LoginScreen = ({ navigation }: any) => {
 
             {/* PROFESSIONAL BUTTON */}
             <LinearGradient
-              colors={['#F43F5E', '#FF7A59', 'blue']} // 👈 Your Pink-to-Red gradient colors!
+              colors={['#F43F5E', '#FF7A59', 'blue']} 
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={{
-                padding: 2, // 👈 THIS IS YOUR BORDER THICKNESS
-                borderRadius: 30, // Must be slightly bigger than the button's radius
+                padding: 2, 
+                borderRadius: 30, 
                 marginBottom: 12,
               }}
             >
               <Button 
-               onPress={handleLogin} 
+                onPress={handleLogin} 
                 loading={isLoading}
                 disabled={isLoading}
                 mode="contained" 
-                buttonColor="#1F2937" // 👈 The solid dark center
+                buttonColor="#1F2937" 
                 textColor="#FFFFFF"   
                 contentStyle={styles.buttonContent}
-                style={{ borderRadius: 30 }} // 👈 Inner radius
+                style={{ borderRadius: 30 }} 
                 labelStyle={styles.buttonLabel}
               >
                 Sign In
               </Button>
             </LinearGradient>
 
-             {/* BOTTOM LINK */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>Don't have an account? </Text>
               <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
