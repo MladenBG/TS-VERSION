@@ -5,8 +5,11 @@ export const USERS_PER_PAGE = 8;
 
 export const WORLD_CITIES = ["Budva", "Miami", "London", "Paris", "Tokyo", "Berlin", "Dubai", "New York", "Belgrade", "Rome"];
 export const NAMES = ["Sofija", "Emma", "Isabella", "Yuki", "Chloe", "Mila", "Martina", "Valentina", "Luka", "Mateo"];
-export const GENDERS = ["Woman", "Man", "Non-binary"];
-export const SEXUALITIES = ["Heterosexual", "Gay", "Bisexual", "Asexual"];
+
+// 🚀 UPDATED GENDERS AND SEXUALITIES 🚀
+export const GENDERS = ["Female", "Male", "Other"];
+export const SEXUALITIES = ["Heterosexual", "Gay", "Lesbian", "Bisexual", "Other"];
+
 export const GHOST_STICKERS = ["❤️", "🔥", "🌹", "👋", "✨", "👑", "😍"];
 
 export const ALL_PROFILES = Array.from({ length: 300 }, (_, i) => ({

@@ -180,7 +180,8 @@ export const AllModals = ({
             
             <Text className="text-[16px] font-bold mt-[15px] mb-2.5 text-black">Show Me</Text>
             <View className="flex-row mb-2.5">
-              {['All', 'Man', 'Woman', 'Non-binary'].map(g => (
+              {/* 🚀 FIXED GENDERS: Female, Male, Other 🚀 */}
+              {['All', 'Female', 'Male', 'Other'].map(g => (
                 <TouchableOpacity 
                   key={g} 
                   onPress={() => {setFilterGender(g); setCurrentPage(1);}} 
@@ -193,7 +194,8 @@ export const AllModals = ({
 
             <Text className="text-[16px] font-bold mt-[15px] mb-2.5 text-black">Orientation Preference</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row mb-2.5">
-              {['All', ...SEXUALITIES].map(s => (
+              {/* 🚀 UPDATED SEXUALITIES: Includes Bisexual and Lesbian 🚀 */}
+              {['All', 'Heterosexual', 'Gay', 'Lesbian', 'Bisexual', 'Other'].map(s => (
                 <TouchableOpacity 
                   key={s} 
                   onPress={() => {setFilterSexuality(s); setCurrentPage(1);}} 
@@ -251,7 +253,6 @@ export const AllModals = ({
                     isAdmin={isAdmin}
                     isVip={isVip}
                     onSelectFriend={(f) => {
-                      // 🚀 CLICKS A FRIEND TO VIEW THEIR PROFILE
                       const fullUser = profiles.find((p: any) => p.id === f.id) || f;
                       setSelectedUser(fullUser);
                     }}
@@ -265,7 +266,7 @@ export const AllModals = ({
                     gifts={selectedUser?.gifts || []} 
                     isAdmin={isAdmin}
                     isVip={isVip}
-                    isPublicView={true} // 🚀 HIDES NAMES FROM PUBLIC
+                    isPublicView={true} 
                     setShowPaywall={() => {
                       setSelectedUser(null); 
                       if (setShowPaywall) setShowPaywall(true); 

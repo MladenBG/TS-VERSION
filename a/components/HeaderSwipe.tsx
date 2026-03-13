@@ -4,16 +4,17 @@ import { View, TouchableOpacity, Image, Text, TextInput } from 'react-native';
 // 🚀 DEFINITION OF PNG ICONS THAT DO NOT BUG OUT (VERIFIED URLs) 🚀
 const ICONS = {
   user: 'https://img.icons8.com/ios-glyphs/60/9CA3AF/user--v1.png',
-  bell: 'https://img.icons8.com/ios-glyphs/60/374151/bell.png', // FIXED BELL ICON
+  newMembers: 'https://img.icons8.com/ios-glyphs/60/374151/user-group-man-man.png', // 🚀 NEW MEMBERS ICON
+  bell: 'https://img.icons8.com/ios-glyphs/60/374151/bell.png', 
   mail: 'https://img.icons8.com/ios-glyphs/60/374151/new-post.png',
-  logout: 'https://img.icons8.com/material-outlined/48/EF4444/logout-rounded-left.png',
+  logout: 'https://img.icons8.com/ios-glyphs/60/EF4444/exit.png',
   search: 'https://img.icons8.com/ios-glyphs/60/9CA3AF/search--v1.png',
   filter: 'https://img.icons8.com/ios-glyphs/60/374151/horizontal-settings-mixer--v1.png'
 };
 
 export const HeaderSwipe = ({ 
   logoImg, 
-  myImage, // 🚀 YOUR REAL PICTURE PROP
+  myImage, 
   isVip, 
   setShowPaywall, 
   tab, 
@@ -26,8 +27,9 @@ export const HeaderSwipe = ({
   setCurrentPage, 
   unreadCount, 
   handleLogout,
-  unreadNotifsCount, // Added for notifications
-  onOpenNotifications // Added to open notifications
+  unreadNotifsCount, 
+  onOpenNotifications, 
+  onOpenNewMembers // 🚀 ADDED PROP
 }: any) => {
   return (
     <View className="p-4 border-b border-gray-200 bg-white pt-12">
@@ -64,12 +66,24 @@ export const HeaderSwipe = ({
           <Image source={logoImg} className="w-[100px] h-[35px]" resizeMode="contain" />
         </TouchableOpacity>
         
-        {/* RIGHT SIDE: ACTIONS (BELL, INBOX, LOGOUT) */}
+        {/* RIGHT SIDE: ACTIONS (NEW MEMBERS, BELL, INBOX, LOGOUT) */}
         <View className="flex-row items-center">
           
+          {/* 🚀 NEW MEMBERS BUTTON (IN THE MIDDLE OF LOGO AND BELL) 🚀 */}
+          <TouchableOpacity 
+            className="w-10 h-10 mr-1 relative justify-center items-center"
+            onPress={onOpenNewMembers} 
+            activeOpacity={0.7}
+          >
+            <Image source={{ uri: ICONS.newMembers }} style={{ width: 28, height: 28 }} resizeMode="contain" />
+            <View className="absolute top-0 right-0 bg-green-500 rounded-full px-1 border-2 border-white z-10">
+              <Text className="text-white text-[8px] font-black">NEW</Text>
+            </View>
+          </TouchableOpacity>
+
           {/* NOTIFICATION BELL ICON */}
           <TouchableOpacity 
-            className="w-10 h-10 mr-2 relative justify-center items-center"
+            className="w-10 h-10 mr-1 relative justify-center items-center"
             onPress={onOpenNotifications} 
             activeOpacity={0.7}
           >
@@ -85,7 +99,7 @@ export const HeaderSwipe = ({
 
           {/* INBOX BUTTON */}
           <TouchableOpacity 
-            className="w-10 h-10 mr-2 relative justify-center items-center"
+            className="w-10 h-10 mr-1 relative justify-center items-center"
             onPress={() => setTab('inbox')}
             activeOpacity={0.7}
           >

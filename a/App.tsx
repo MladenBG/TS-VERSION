@@ -44,6 +44,7 @@ import { CloudflareVideoCall } from './components/CloudflareVideoCall';
 import { Inbox } from './components/Inbox';
 import { InvisibleModeToggle } from './components/InvisibleModeToggle';
 import { Notifications } from './components/Notifications'; 
+import { NewMembers } from './components/NewMembers'; // 🚀 IMPORTED NEW MEMBERS
 import { HomeScreen } from './screens/HomeScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { SignUpScreen } from './screens/SignUpScreen';
@@ -65,8 +66,9 @@ const Stack = createStackNavigator();
 export const navigationRef = createNavigationContainerRef();
 
 export default function App() {
-  const notificationSound = useAudioPlayer('https://actions.google.com/sounds/v1/ui_icons/bubble_pop.ogg');
-  
+ // 🚀 REPLACE THE OLD URL LINE WITH THESE 🚀
+const notificationSound = useAudioPlayer(require('./assets/notification.mp3'));
+const messageSound = useAudioPlayer(require('./assets/message.mp3'));
   // --- Navigation & Core State ---
   const [tab, setTab] = useState<'discover' | 'lobby' | 'favorites' | 'admin' | 'settings' | 'inbox'>('discover');
   const [favTab, setFavTab] = useState<'my_likes' | 'liked_me' | 'viewed_me'>('my_likes');
@@ -123,10 +125,11 @@ export default function App() {
   const [showFriendRequests, setShowFriendRequests] = useState(false);
   const [reqTab, setReqTab] = useState<'received' | 'sent'>('received');
 
-  // 🚀 NOTIFICATIONS STATE 🚀
+  // 🚀 NOTIFICATIONS & NEW MEMBERS STATE 🚀
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
   const [showNotifsModal, setShowNotifsModal] = useState(false);
+  const [showNewMembers, setShowNewMembers] = useState(false); // 🚀 NEW MEMBERS STATE
 
   // =========================================================================
   // EFFECTS & DATA FETCHING
@@ -243,7 +246,6 @@ export default function App() {
         setMessages(msgHistory);
       }
 
-      // 🚀 FIXED: PREVENTS WIPING NOTIFICATIONS ON REFRESH
       if (loadedNotifs && loadedNotifs.length > 0) {
         setNotifications(loadedNotifs);
         setUnreadNotifsCount(loadedNotifs.filter((n: any) => !n.is_read).length);
@@ -437,15 +439,18 @@ export default function App() {
       socket.emit("register_user", { id: myId, name: myName }); 
     }
 
-    const handleReceiveLobby = (msg: any) => {
+  const handleReceiveLobby = (msg: any) => {
       setLobbyMessages(prev => [msg, ...prev]);
     };
     
     socket.on("receive_lobby_msg", handleReceiveLobby);
 
-    // 🚀 FIXED: REAL-TIME PRIVATE MESSAGES LISTENER (MAIL) 🚀
     const handleReceivePrivateMsg = (msgData: any) => {
-      // Povećaj brojač inboxa samo ako nisi trenutno u inboxu
+      // 🚀 PLAY MESSAGE SOUND HERE 🚀
+      if (messageSound) {
+        messageSound.play();
+      }
+
       if (currentTab.current !== 'inbox') {
         setUnreadCount(prev => prev + 1);
       }
@@ -497,15 +502,16 @@ export default function App() {
 
     socket.on("incoming_call", handleIncomingCall);
 
-    // 🚀 FIXED: LIGHTWEIGHT BACKGROUND REFRESH FOR FRIEND REQUESTS 🚀
     const handleNewNotification = async (notif: any) => {
-      notificationSound.play();
+      // 🚀 PLAY GENERAL NOTIFICATION SOUND HERE (Gifts, Likes, Friends) 🚀
+      if (notificationSound) {
+        notificationSound.play();
+      }
       Vibration.vibrate();
       setNotifications(prev => [notif, ...prev]);
       setUnreadNotifsCount(prev => prev + 1);
       
       try {
-        // Povuče samo korisnike u pozadini kako bi dobio najnovije zahteve
         const res = await fetch(`${API_URL}/api/users${myId ? `?my_id=${myId}` : ''}`);
         const data = await res.json();
         
@@ -535,7 +541,7 @@ export default function App() {
                 height: u.height || 'Unknown',
                 bio: u.bio || '',
                 is_vip: u.is_vip,
-                isFavorite: oldProfile ? oldProfile.isFavorite : false, // Cuva lajkove
+                isFavorite: oldProfile ? oldProfile.isFavorite : false,
                 distance: oldProfile ? oldProfile.distance : Math.floor(Math.random() * 10) + 1,
                 isBanned: false,
                 friends: u.friends || [],
@@ -733,7 +739,6 @@ export default function App() {
         };
       });
 
-      // 🚀 FIXED: SENDS SENDER ID SO THE RECEIVER KNOWS WHO SENT IT 🚀
       socket.emit("private_message", { 
         receiverId: chatUser.id, 
         messageData: { ...newMsg, senderId: myId, sender: 'other' } 
@@ -962,6 +967,7 @@ export default function App() {
                       handleLogout={handleLogout} 
                       unreadNotifsCount={unreadNotifsCount}
                       onOpenNotifications={openNotifications}
+                      onOpenNewMembers={() => setShowNewMembers(true)} // 🚀 NEW ACTION
                     />
                   )}
 
@@ -1489,6 +1495,16 @@ export default function App() {
                       )}
                     </SafeAreaView>
                   </Modal>
+
+                  {/* 🚀 NEW MEMBERS MODAL OVERLAY 🚀 */}
+                  <NewMembers 
+                    visible={showNewMembers} 
+                    onClose={() => setShowNewMembers(false)} 
+                    profiles={profiles} 
+                    onSelectUser={handleProfileView} 
+                    toggleLike={toggleLike}
+                    myId={myId}
+                  />
 
                   <Notifications 
                     visible={showNotifsModal} 
