@@ -213,7 +213,6 @@ app.get('/api/users', async (req: Request, res: Response) => {
     let query = '';
     let params: any[] = [];
     
-    // 🚀 FULLY UPDATED SQL TO SEPARATE ACCEPTED FRIENDS AND PENDING REQUESTS 🚀
     const selectFields = `
       SELECT u.*, 
       COALESCE(
@@ -600,7 +599,6 @@ app.post('/api/likes', async (req: Request, res: Response) => {
         [user_id, liked_user_id]
       );
 
-      // 🚀 NEW: EMIT REAL-TIME NOTIFICATION FOR LIKES WITH USERNAME 🚀
       const userRes = await pool.query('SELECT name FROM users WHERE id = $1', [user_id]);
       const likerName = userRes.rows[0]?.name || 'Someone';
 
@@ -608,7 +606,7 @@ app.post('/api/likes', async (req: Request, res: Response) => {
         id: `like_${Date.now()}`,
         type: "like",
         message: `${likerName} liked your profile!`,
-        created_at: new Date().toISOString(), // Fixed Invalid Date
+        created_at: new Date().toISOString(),
         is_read: false
       });
     }
@@ -655,7 +653,6 @@ app.post('/api/friends', async (req: Request, res: Response) => {
       [user_id, friend_id]
     );
 
-    // 🚀 FIXED: FETCH REAL USERNAME & ADD TIMESTAMP 🚀
     const userRes = await pool.query('SELECT name FROM users WHERE id = $1', [user_id]);
     const senderName = userRes.rows[0]?.name || 'Someone';
 
@@ -663,7 +660,7 @@ app.post('/api/friends', async (req: Request, res: Response) => {
       id: `req_${Date.now()}`,
       type: "friend_request",
       message: `${senderName} sent you a friend request!`,
-      created_at: new Date().toISOString(), // Fixed Invalid Date
+      created_at: new Date().toISOString(),
       is_read: false
     });
 
@@ -683,7 +680,6 @@ app.post('/api/friends/accept', async (req: Request, res: Response) => {
       [friend_id, user_id] 
     );
     
-    // 🚀 FIXED: FETCH REAL USERNAME & ADD TIMESTAMP 🚀
     const userRes = await pool.query('SELECT name FROM users WHERE id = $1', [user_id]);
     const accepterName = userRes.rows[0]?.name || 'Someone';
 
@@ -691,7 +687,7 @@ app.post('/api/friends/accept', async (req: Request, res: Response) => {
       id: `acc_${Date.now()}`,
       type: "friend_accepted",
       message: `${accepterName} accepted your friend request!`,
-      created_at: new Date().toISOString(), // Fixed Invalid Date
+      created_at: new Date().toISOString(),
       is_read: false
     });
 
@@ -756,7 +752,6 @@ app.post('/api/gifts', async (req: Request, res: Response) => {
       [sender_id, receiver_id, gift_name]
     );
 
-    // 🚀 FIXED: FETCH REAL USERNAME & ADD TIMESTAMP 🚀
     const userRes = await pool.query('SELECT name FROM users WHERE id = $1', [sender_id]);
     const senderName = userRes.rows[0]?.name || 'Someone';
 
@@ -764,7 +759,7 @@ app.post('/api/gifts', async (req: Request, res: Response) => {
       id: `gift_${Date.now()}`,
       type: "gift",
       message: `${senderName} sent you a ${gift_name}!`,
-      created_at: new Date().toISOString(), // Fixed Invalid Date
+      created_at: new Date().toISOString(),
       is_read: false
     });
 
@@ -954,12 +949,11 @@ app.post('/api/messages', async (req: Request, res: Response) => {
       [sender_id]
     );
 
-    // 🚀 NEW: INSTANT NOTIFICATION FOR PRIVATE MESSAGES WITH NAME 🚀
     io.to(receiver_id).emit("new_notification", {
       id: `msgnotif_${Date.now()}`,
       type: "new_message",
       message: `${senderName} sent you a private message!`,
-      created_at: new Date().toISOString(), // Fixed Invalid Date
+      created_at: new Date().toISOString(),
       is_read: false
     });
 
@@ -974,8 +968,10 @@ app.post('/api/settings/invisible', async (req: Request, res: Response) => {
 });
 
 // ==========================================================
-// 📡 SOCKET.IO REALTIME EVENT LISTENERS
+// 📡 SOCKET.IO REALTIME EVENT LISTENERS (ONLINE TRACKING)
 // ==========================================================
+const onlineUsersMap = new Map<string, string>(); // Tracks socket.id -> userId
+
 io.on("connection", (socket: Socket) => {
   console.log("Connected:", socket.id);
 
@@ -983,13 +979,22 @@ io.on("connection", (socket: Socket) => {
     socket.broadcast.emit("receive_lobby_msg", data);
   });
 
+  // 🚀 FIXED: TRACK ONLINE STATUS WHEN USER LOGS IN 🚀
   socket.on("register_user", (userData: any) => {
+    let userId = "";
     if (typeof userData === 'string') {
+      userId = userData;
       socket.join(userData);
     } 
     else if (userData && userData.id) {
+      userId = userData.id;
       socket.join(userData.id);    
       socket.join(userData.name);  
+    }
+
+    if (userId) {
+      onlineUsersMap.set(socket.id, userId);
+      io.emit("online_users_update", Array.from(new Set(onlineUsersMap.values())));
     }
   });
 
@@ -1009,8 +1014,11 @@ io.on("connection", (socket: Socket) => {
     socket.to(data.callerId).emit("call_declined");
   });
 
+  // 🚀 FIXED: REMOVE USER FROM ONLINE LIST ON DISCONNECT 🚀
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
+    onlineUsersMap.delete(socket.id);
+    io.emit("online_users_update", Array.from(new Set(onlineUsersMap.values())));
   });
 });
 

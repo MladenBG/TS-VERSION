@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, TouchableOpacity, Image, Text, TextInput } from 'react-native';
 
-// 🚀 DEFINITION OF PNG ICONS THAT DO NOT BUG OUT (VERIFIED URLs) 🚀
 const ICONS = {
   user: 'https://img.icons8.com/ios-glyphs/60/9CA3AF/user--v1.png',
-  newMembers: 'https://img.icons8.com/ios-glyphs/60/374151/user-group-man-man.png', // 🚀 NEW MEMBERS ICON
+  online: 'https://img.icons8.com/ios-glyphs/60/4CAF50/conference-call.png', // 🚀 NEW: Live Crowd
+  newMembers: 'https://img.icons8.com/ios-glyphs/60/374151/user-group-man-man.png',
   bell: 'https://img.icons8.com/ios-glyphs/60/374151/bell.png', 
   mail: 'https://img.icons8.com/ios-glyphs/60/374151/new-post.png',
   logout: 'https://img.icons8.com/ios-glyphs/60/EF4444/exit.png',
@@ -29,13 +29,15 @@ export const HeaderSwipe = ({
   handleLogout,
   unreadNotifsCount, 
   onOpenNotifications, 
-  onOpenNewMembers // 🚀 ADDED PROP
+  onOpenNewMembers,
+  onlineCount, 
+  onOpenOnlineMembers 
 }: any) => {
   return (
     <View className="p-4 border-b border-gray-200 bg-white pt-12">
       <View className="flex-row justify-between items-center mb-3">
         
-        {/* 🚀 LEFT SIDE: YOUR PROFILE PICTURE 🚀 */}
+        {/* LEFT SIDE: PROFILE PIC */}
         <TouchableOpacity 
           onPress={() => setTab('settings')}
           className="relative"
@@ -63,15 +65,27 @@ export const HeaderSwipe = ({
           onPress={() => {setTab('discover'); setDiscoveryMode('list');}} 
           style={{ flex: 1, alignItems: 'center' }} 
         >
-          <Image source={logoImg} className="w-[100px] h-[35px]" resizeMode="contain" />
+          <Image source={logoImg} className="w-[100px] h-[50px]" resizeMode="contain" />
         </TouchableOpacity>
         
-        {/* RIGHT SIDE: ACTIONS (NEW MEMBERS, BELL, INBOX, LOGOUT) */}
+        {/* RIGHT SIDE: ACTIONS */}
         <View className="flex-row items-center">
           
-          {/* 🚀 NEW MEMBERS BUTTON (IN THE MIDDLE OF LOGO AND BELL) 🚀 */}
+          {/* 🚀 ONLINE USERS BUTTON (CHANGED mr-1 to mr-3 for spacing) 🚀 */}
           <TouchableOpacity 
-            className="w-10 h-10 mr-1 relative justify-center items-center"
+            className="w-10 h-10 mr-2 relative left-[-17] justify-center items-center"
+            onPress={onOpenOnlineMembers} 
+            activeOpacity={0.7}
+          >
+            <Image source={{ uri: ICONS.online }} style={{ width: 28, height: 28 }} resizeMode="contain" />
+            <View className="absolute top-0 right-0 bg-[#4CAF50] rounded-full px-1 border-2 border-white z-10">
+              <Text className="text-white text-[8px] font-black">{onlineCount}</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* 🚀 NEW MEMBERS BUTTON (CHANGED mr-1 to mr-3 for spacing) 🚀 */}
+          <TouchableOpacity 
+            className="w-10 h-10 mr-3 relative left-[-6] justify-center items-center"
             onPress={onOpenNewMembers} 
             activeOpacity={0.7}
           >
@@ -81,9 +95,9 @@ export const HeaderSwipe = ({
             </View>
           </TouchableOpacity>
 
-          {/* NOTIFICATION BELL ICON */}
+          {/* 🚀 NOTIFICATION BELL ICON (CHANGED mr-1 to mr-3 for spacing) 🚀 */}
           <TouchableOpacity 
-            className="w-10 h-10 mr-1 relative justify-center items-center"
+            className="w-10 h-10 mr-3 left-[-4] relative justify-center items-center"
             onPress={onOpenNotifications} 
             activeOpacity={0.7}
           >
@@ -97,9 +111,9 @@ export const HeaderSwipe = ({
             )}
           </TouchableOpacity>
 
-          {/* INBOX BUTTON */}
+          {/* 🚀 INBOX BUTTON (CHANGED mr-1 to mr-3 for spacing) 🚀 */}
           <TouchableOpacity 
-            className="w-10 h-10 mr-1 relative justify-center items-center"
+            className="w-10 h-10 mr-3 relative left-[-4] justify-center items-center"
             onPress={() => setTab('inbox')}
             activeOpacity={0.7}
           >
@@ -113,7 +127,7 @@ export const HeaderSwipe = ({
             )}
           </TouchableOpacity>
 
-          {/* LOGOUT ICON */}
+          {/* LOGOUT ICON (No margin needed here since it's the last icon on the right) */}
           <TouchableOpacity 
             className="w-10 h-10 justify-center items-center"
             onPress={handleLogout}
