@@ -2,14 +2,14 @@ import React from 'react';
 import { View, TouchableOpacity, Image, Text, TextInput } from 'react-native';
 
 const ICONS = {
-  user: 'https://img.icons8.com/ios-glyphs/60/9CA3AF/user--v1.png',
-  online: 'https://img.icons8.com/ios-glyphs/60/4CAF50/conference-call.png', // 🚀 NEW: Live Crowd
-  newMembers: 'https://img.icons8.com/ios-glyphs/60/374151/user-group-man-man.png',
-  bell: 'https://img.icons8.com/ios-glyphs/60/374151/bell.png', 
-  mail: 'https://img.icons8.com/ios-glyphs/60/374151/new-post.png',
-  logout: 'https://img.icons8.com/ios-glyphs/60/EF4444/exit.png',
-  search: 'https://img.icons8.com/ios-glyphs/60/9CA3AF/search--v1.png',
-  filter: 'https://img.icons8.com/ios-glyphs/60/374151/horizontal-settings-mixer--v1.png'
+  user: require('../assets/user.png'),
+  online: require('../assets/online.png'), 
+  newMembers: require('../assets/newMembers.png'),
+  bell: require('../assets/bell.png'), 
+  mail: require('../assets/mail.png'),
+  logout: require('../assets/logout.png'),
+  search: require('../assets/search.png'),
+  filter: require('../assets/filter.png')
 };
 
 export const HeaderSwipe = ({ 
@@ -50,7 +50,7 @@ export const HeaderSwipe = ({
             />
           ) : (
             <View className="w-12 h-12 rounded-full bg-gray-200 border-2 border-gray-300 items-center justify-center shadow-sm overflow-hidden">
-              <Image source={{ uri: ICONS.user }} style={{ width: 28, height: 28 }} resizeMode="contain" />
+              <Image source={ICONS.user} style={{ width: 28, height: 28 }} resizeMode="contain" />
             </View>
           )}
           {isVip && (
@@ -77,7 +77,7 @@ export const HeaderSwipe = ({
             onPress={onOpenOnlineMembers} 
             activeOpacity={0.7}
           >
-            <Image source={{ uri: ICONS.online }} style={{ width: 28, height: 28 }} resizeMode="contain" />
+            <Image source={ICONS.online} style={{ width: 28, height: 28 }} resizeMode="contain" />
             <View className="absolute top-0 right-0 bg-[#4CAF50] rounded-full px-1 border-2 border-white z-10">
               <Text className="text-white text-[8px] font-black">{onlineCount}</Text>
             </View>
@@ -89,7 +89,7 @@ export const HeaderSwipe = ({
             onPress={onOpenNewMembers} 
             activeOpacity={0.7}
           >
-            <Image source={{ uri: ICONS.newMembers }} style={{ width: 28, height: 28 }} resizeMode="contain" />
+            <Image source={ICONS.newMembers} style={{ width: 28, height: 28 }} resizeMode="contain" />
             <View className="absolute top-0 right-0 bg-green-500 rounded-full px-1 border-2 border-white z-10">
               <Text className="text-white text-[8px] font-black">NEW</Text>
             </View>
@@ -101,7 +101,7 @@ export const HeaderSwipe = ({
             onPress={onOpenNotifications} 
             activeOpacity={0.7}
           >
-            <Image source={{ uri: ICONS.bell }} style={{ width: 26, height: 26 }} resizeMode="contain" />
+            <Image source={ICONS.bell} style={{ width: 26, height: 26 }} resizeMode="contain" />
             {unreadNotifsCount > 0 && (
               <View className="absolute top-0 right-0 bg-red-500 rounded-full w-5 h-5 justify-center items-center border-2 border-white z-10">
                 <Text className="text-white text-[10px] font-black">
@@ -117,7 +117,7 @@ export const HeaderSwipe = ({
             onPress={() => setTab('inbox')}
             activeOpacity={0.7}
           >
-            <Image source={{ uri: ICONS.mail }} style={{ width: 26, height: 26 }} resizeMode="contain" />
+            <Image source={ICONS.mail} style={{ width: 26, height: 26 }} resizeMode="contain" />
             {unreadCount > 0 && (
               <View className="absolute top-0 right-0 bg-red-500 rounded-full w-5 h-5 justify-center items-center border-2 border-white">
                 <Text className="text-white text-[8px] font-black">
@@ -133,7 +133,7 @@ export const HeaderSwipe = ({
             onPress={handleLogout}
             activeOpacity={0.7}
           >
-            <Image source={{ uri: ICONS.logout }} style={{ width: 24, height: 24 }} resizeMode="contain" />
+            <Image source={ICONS.logout} style={{ width: 24, height: 24 }} resizeMode="contain" />
           </TouchableOpacity>
         </View>
       </View>
@@ -143,7 +143,7 @@ export const HeaderSwipe = ({
         <>
           <View className="flex-row items-center">
             <View className="flex-1 h-[45px] bg-gray-50 border border-gray-200 rounded-xl px-4 flex-row items-center shadow-sm">
-              <Image source={{ uri: ICONS.search }} style={{ width: 20, height: 20 }} resizeMode="contain" />
+              <Image source={ICONS.search} style={{ width: 20, height: 20 }} resizeMode="contain" />
               <TextInput 
                 className="flex-1 ml-2 text-black font-bold h-full" 
                 placeholder="Search Town, Name..." 
@@ -158,7 +158,7 @@ export const HeaderSwipe = ({
               onPress={() => setShowFilters(true)}
               activeOpacity={0.7}
             >
-              <Image source={{ uri: ICONS.filter }} style={{ width: 24, height: 24 }} resizeMode="contain" />
+              <Image source={ICONS.filter} style={{ width: 24, height: 24 }} resizeMode="contain" />
             </TouchableOpacity>
           </View>
 

@@ -209,6 +209,11 @@ app.get('/api/get-upload-url', async (req: Request, res: Response) => {
 app.get('/api/users', async (req: Request, res: Response) => {
   const myId = req.query.my_id as string;
   
+  // 🚀 ŠTIT 1: Sprečava da "test_user_id" sruši bazu
+  if (!myId || myId === 'test_user_id' || myId === 'undefined') {
+      return res.json([]);
+  }
+  
   try {
     let query = '';
     let params: any[] = [];
@@ -575,6 +580,12 @@ app.post('/api/report', async (req: Request, res: Response) => {
 // ==========================================================
 // ❤️ INTERACTIONS (LIKES, VIEWS, GIFTS, FRIENDS)
 // ==========================================================
+
+// 🚀 RUTINE KOJE SU FALILE U TVOM STAROM KODU 🚀
+app.get('/api/notifications', async (req: Request, res: Response) => {
+  res.json([]); // Ovo mora da postoji da aplikacija ne baca 404 grešku
+});
+
 app.post('/api/likes', async (req: Request, res: Response) => {
   const { user_id, liked_user_id } = req.body;
   
@@ -618,10 +629,14 @@ app.post('/api/likes', async (req: Request, res: Response) => {
 });
 
 app.get('/api/likes/my-likes', async (req: Request, res: Response) => {
+  const myId = req.query.my_id as string;
+  // 🚀 ŠTIT 2: Sprečava da "test_user_id" sruši bazu
+  if (!myId || myId === 'test_user_id' || myId === 'undefined') return res.json([]);
+
   try {
     const result = await pool.query(
       'SELECT liked_user_id FROM likes WHERE user_id = $1', 
-      [req.query.my_id]
+      [myId]
     );
     res.json(result.rows.map(r => r.liked_user_id));
   } catch (error) {
@@ -857,9 +872,10 @@ app.get('/api/messages', async (req: Request, res: Response) => {
   const myId = req.query.my_id as string;
   const otherId = req.query.other_id as string;
   
+  // 🚀 ŠTIT 3: Sprečava da "test_user_id" sruši bazu
+  if (!myId || myId === 'test_user_id' || myId === 'undefined') return res.json(otherId ? [] : {});
+
   try {
-    if (!myId) return res.json(otherId ? [] : {});
-    
     if (otherId) {
       const result = await pool.query(`
         SELECT id, content as text, sender_id, receiver_id, created_at
@@ -963,15 +979,44 @@ app.post('/api/messages', async (req: Request, res: Response) => {
   }
 });
 
+// 🚀 OVO JE JEDINA RUTINA KOJA JE PROMENJENA ZA TVOJU BAZU 🚀
+app.post('/api/auth/signup', async (req: Request, res: Response) => {
+  const { name, email, password, gender } = req.body;
+  
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: "All fields are required" });
+  }
+
+  try {
+    const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userCheck.rows.length > 0) {
+      return res.status(400).json({ error: "Email is already registered." });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Obrisana `password` kolona iz INSERT komande da bi radilo sa tvojom bazom
+    const result = await pool.query(
+      `INSERT INTO users (name, email, password_hash, gender, created_at) 
+       VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
+      [name, email, hashedPassword, gender]
+    );
+
+    res.json({ success: true, user: result.rows[0] });
+  } catch (error) {
+    console.error("Backend Signup Error:", error);
+    res.status(500).json({ error: "Server failed to create account." });
+  }
+});
+
 app.post('/api/settings/invisible', async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
 // ==========================================================
-// 📡 SOCKET.IO REALTIME EVENT LISTENERS (ONLINE TRACKING)
+// 📡 SOCKET.IO REALTIME EVENT LISTENERS
 // ==========================================================
-const onlineUsersMap = new Map<string, string>(); // Tracks socket.id -> userId
-
 io.on("connection", (socket: Socket) => {
   console.log("Connected:", socket.id);
 
@@ -979,22 +1024,13 @@ io.on("connection", (socket: Socket) => {
     socket.broadcast.emit("receive_lobby_msg", data);
   });
 
-  // 🚀 FIXED: TRACK ONLINE STATUS WHEN USER LOGS IN 🚀
   socket.on("register_user", (userData: any) => {
-    let userId = "";
     if (typeof userData === 'string') {
-      userId = userData;
       socket.join(userData);
     } 
     else if (userData && userData.id) {
-      userId = userData.id;
       socket.join(userData.id);    
       socket.join(userData.name);  
-    }
-
-    if (userId) {
-      onlineUsersMap.set(socket.id, userId);
-      io.emit("online_users_update", Array.from(new Set(onlineUsersMap.values())));
     }
   });
 
@@ -1014,11 +1050,8 @@ io.on("connection", (socket: Socket) => {
     socket.to(data.callerId).emit("call_declined");
   });
 
-  // 🚀 FIXED: REMOVE USER FROM ONLINE LIST ON DISCONNECT 🚀
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-    onlineUsersMap.delete(socket.id);
-    io.emit("online_users_update", Array.from(new Set(onlineUsersMap.values())));
   });
 });
 

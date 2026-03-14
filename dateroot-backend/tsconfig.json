@@ -9,10 +9,12 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@aws-sdk/s3-request-presigner": ["node_modules/@aws-sdk/s3-request-presigner"],
-      "*": ["node_modules/*"]
+      // 🚀 ADD THIS LINE TO FIX THE '@/lib/db' ERROR 🚀
+      "@/*": ["./*"],
+      
+      "@aws-sdk/s3-request-presigner": ["node_modules/@aws-sdk/s3-request-presigner"]
     }
   },
-  "include": ["server.ts"],
+  "include": ["server.ts", "lib/**/*.ts", "app/**/*.ts"], // 🚀 ADD LIB AND APP FOLDERS HERE
   "exclude": ["node_modules"]
 }

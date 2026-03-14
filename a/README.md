@@ -541,3 +541,11 @@ FOR AUDIO NOTIFICATIONS
 
 npx expo install expo-audio
 
+
+
+
+
+TYPES!!!!!
+
+npm install -D typescript ts-node @types/node @types/express @types/cors @types/pg @types/bcrypt
+

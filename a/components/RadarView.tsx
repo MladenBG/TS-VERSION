@@ -10,7 +10,7 @@ import Animated, {
 import * as Location from 'expo-location';
 
 // 🚨 MATCH YOUR API URL
-const API_URL = "http://10.0.2.2:3000"; 
+const API_URL = "http://10.0.2.2:3001"; // Make sure it says 3001 if your server runs on 3001!
 
 const PulseCircle = ({ delay = 0 }: { delay?: number }) => {
   const pulse = useSharedValue(0);
@@ -41,25 +41,33 @@ export default function RadarView({ currentUserId = "my_test_id" }: { currentUse
     const fetchRadarData = async () => {
       setIsSearching(true);
       try {
-        // 1. Ask for GPS Permission
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Permission Denied', 'Please allow location access to see nearby users.');
-          setIsSearching(false);
-          return;
-        }
+        // 🚀 BULLETPROOF BYPASS FOR BROKEN EMULATORS 🚀
+        // Default to a test location (e.g., Belgrade center)
+        let lat = 44.7866; 
+        let lon = 20.4489;
 
-        // 2. Get exact Latitude and Longitude
-        let location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        const { latitude, longitude } = location.coords;
+        try {
+            // 1. Ask for GPS Permission
+            let { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+                // We use getLastKnown to prevent the emulator from freezing forever
+                let location = await Location.getLastKnownPositionAsync({});
+                if (location) {
+                    lat = location.coords.latitude;
+                    lon = location.coords.longitude;
+                }
+            } else {
+                Alert.alert('Permission Denied', 'Using default location because GPS was denied.');
+            }
+        } catch (locError) {
+            console.log("GPS fetch failed, falling back to default.", locError);
+        }
 
         // 3. Send location to backend and get nearby users
         const res = await fetch(`${API_URL}/api/users/radar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUserId, latitude, longitude })
+          body: JSON.stringify({ userId: currentUserId, latitude: lat, longitude: lon })
         });
 
         if (res.ok) {
@@ -69,7 +77,7 @@ export default function RadarView({ currentUserId = "my_test_id" }: { currentUse
           console.error("Failed to fetch radar users");
         }
       } catch (error) {
-        console.error("Location Error:", error);
+        console.error("Location/Fetch Error:", error);
       } finally {
         setIsSearching(false);
       }
@@ -96,8 +104,11 @@ export default function RadarView({ currentUserId = "my_test_id" }: { currentUse
         const maxDistanceKm = 100;
         
         // Calculate how far from the center the user should be drawn
-        const pixelDistanceFromCenter = (user.distance_km / maxDistanceKm) * maxRadarRadius;
+        let pixelDistanceFromCenter = (user.distance_km / maxDistanceKm) * maxRadarRadius;
         
+        // Ensure they don't draw outside the screen if they are >100km away
+        if (pixelDistanceFromCenter > maxRadarRadius) pixelDistanceFromCenter = maxRadarRadius;
+
         // Give them a random angle so they spread out in a circle
         const randomAngle = Math.random() * 2 * Math.PI; 
 

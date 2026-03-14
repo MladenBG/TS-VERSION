@@ -12,12 +12,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 const API_URL = "http://10.0.2.2:3001";
 // =========================================================================
 
-// 🚀 DEFINITION OF PNG ICONS THAT DO NOT BUG OUT 🚀
+// 🚀 NOW USING LOCAL FILES WITH YOUR CUSTOM "1" NAMES 🚀
 const ICONS = {
-  mail: 'https://img.icons8.com/material-outlined/48/000000/mail.png',
-  lock: 'https://img.icons8.com/material-outlined/48/000000/lock.png',
-  eye: 'https://img.icons8.com/material-outlined/48/000000/visible.png',
-  eyeOff: 'https://img.icons8.com/material-outlined/48/000000/hide.png'
+  mail: require('../assets/mail1.png'),
+  lock: require('../assets/lock1.png'),
+  eye: require('../assets/eye1.png'),
+  eyeOff: require('../assets/eyeoff1.png')
 };
 
 // Premium Rose Theme
@@ -89,7 +89,7 @@ export const LoginScreen = ({ navigation }: any) => {
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
                 // 🚀 INSERTED IMAGE FOR EMAIL 🚀
-                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.mail }} style={{ width: 22, height: 22 }} />} />}
+                left={<TextInput.Icon icon={() => <Image source={ICONS.mail} style={{ width: 22, height: 22 }} />} />}
               />
               
               <TextInput
@@ -101,13 +101,13 @@ export const LoginScreen = ({ navigation }: any) => {
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
                 // 🚀 INSERTED IMAGE FOR LOCK 🚀
-                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.lock }} style={{ width: 22, height: 22 }} />} />}
+                left={<TextInput.Icon icon={() => <Image source={ICONS.lock} style={{ width: 22, height: 22 }} />} />}
                 // 🚀 INSERTED IMAGE FOR EYE (VISIBLE/HIDE) 🚀
                 right={
                   <TextInput.Icon 
                     icon={() => (
                       <Image 
-                        source={{ uri: showPassword ? ICONS.eyeOff : ICONS.eye }} 
+                        source={showPassword ? ICONS.eyeOff : ICONS.eye} 
                         style={{ width: 22, height: 22 }} 
                       />
                     )} 

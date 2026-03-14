@@ -2,19 +2,19 @@ import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { TextInput, Button, Text, SegmentedButtons, Checkbox, Provider as PaperProvider, MD3LightTheme, HelperText } from 'react-native-paper';
+import { TextInput, Button, Text, SegmentedButtons, Provider as PaperProvider, MD3LightTheme, HelperText } from 'react-native-paper';
 import { Feather } from '@expo/vector-icons';
 
-const API_URL = "http://10.0.2.2:3001/api";
+const API_URL = "http://10.0.2.2:3001";
 
-// 🚀 DEFINITION OF PNG ICONS THAT DO NOT BUG OUT 🚀
+// 🚀 LOCAL FILES FROM YOUR ASSETS FOLDER 🚀
 const ICONS = {
-  account: 'https://img.icons8.com/material-outlined/48/000000/user.png',
-  mail: 'https://img.icons8.com/material-outlined/48/000000/mail.png',
-  lock: 'https://img.icons8.com/material-outlined/48/000000/lock.png',
-  shield: 'https://img.icons8.com/material-outlined/48/000000/shield.png',
-  eye: 'https://img.icons8.com/material-outlined/48/000000/visible.png',
-  eyeOff: 'https://img.icons8.com/material-outlined/48/000000/hide.png'
+  account: require('../assets/account2.png'),
+  mail: require('../assets/mail2.png'),
+  lock: require('../assets/lock2.png'),
+  shield: require('../assets/shield2.png'), 
+  eye: require('../assets/eye2.png'),
+  eyeOff: require('../assets/eyeoff2.png')
 };
 
 const theme = {
@@ -60,13 +60,12 @@ export const SignUpScreen = ({ navigation }: any) => {
 
     setIsLoading(true);
     try {
-      // 🚀 1. COMBINE NAMES INTO "name" SO DATABASE ACCEPTS IT
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
-      const response = await fetch(`${API_URL}/auth/signup`, {
+      // 🚀 FIXED: ADDED /api/ SO IT DOESN'T 404 CRASH 🚀
+      const response = await fetch(`${API_URL}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // 🚀 2. SENDING 'name' TO MATCH THE BACKEND ROUTE
         body: JSON.stringify({ 
           name: fullName, 
           email: safeEmail, 
@@ -80,12 +79,11 @@ export const SignUpScreen = ({ navigation }: any) => {
       if (!response.ok) {
         Alert.alert("Signup Failed", data.error || "Something went wrong.");
       } else {
-        // 🚀 3. PASS THE REAL DATA TO MAIN SCREEN TO HIDE ADMIN DASHBOARD!
         navigation.replace('Main', { user: data.user });
       }
     } catch (error) {
       console.error("Signup Error:", error);
-      Alert.alert("Network Error", "Could not connect to server.");
+      Alert.alert("Network Error", "Could not connect to server. Is the backend running?");
     } finally {
       setIsLoading(false);
     }
@@ -117,8 +115,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                 onChangeText={setFirstName}
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                // 🚀 INSERTED IMAGE FOR USER 🚀
-                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.account }} style={{ width: 22, height: 22 }} />} />}
+                left={<TextInput.Icon icon={() => <Image source={ICONS.account} style={{ width: 22, height: 22 }} />} />}
               />
 
               <TextInput
@@ -128,8 +125,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                 onChangeText={setLastName}
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                // 🚀 INSERTED IMAGE FOR USER 🚀
-                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.account }} style={{ width: 22, height: 22 }} />} />}
+                left={<TextInput.Icon icon={() => <Image source={ICONS.account} style={{ width: 22, height: 22 }} />} />}
               />
 
               <TextInput
@@ -141,8 +137,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                 keyboardType="email-address"
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                // 🚀 INSERTED IMAGE FOR EMAIL 🚀
-                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.mail }} style={{ width: 22, height: 22 }} />} />}
+                left={<TextInput.Icon icon={() => <Image source={ICONS.mail} style={{ width: 22, height: 22 }} />} />}
               />
               
               <TextInput
@@ -153,14 +148,12 @@ export const SignUpScreen = ({ navigation }: any) => {
                 secureTextEntry={!showPassword}
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                // 🚀 INSERTED IMAGE FOR LOCK 🚀
-                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.lock }} style={{ width: 22, height: 22 }} />} />}
-                // 🚀 INSERTED IMAGE FOR EYE (VISIBLE/HIDE) 🚀
+                left={<TextInput.Icon icon={() => <Image source={ICONS.lock} style={{ width: 22, height: 22 }} />} />}
                 right={
                   <TextInput.Icon 
                     icon={() => (
                       <Image 
-                        source={{ uri: showPassword ? ICONS.eyeOff : ICONS.eye }} 
+                        source={showPassword ? ICONS.eyeOff : ICONS.eye} 
                         style={{ width: 22, height: 22 }} 
                       />
                     )} 
@@ -184,8 +177,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                 secureTextEntry={!showPassword}
                 style={styles.input}
                 outlineStyle={styles.inputOutline}
-                // 🚀 INSERTED IMAGE FOR SHIELD 🚀
-                left={<TextInput.Icon icon={() => <Image source={{ uri: ICONS.shield }} style={{ width: 22, height: 22 }} />} />}
+                left={<TextInput.Icon icon={() => <Image source={ICONS.shield} style={{ width: 22, height: 22 }} />} />}
               />
               <HelperText type={doPasswordsMatch ? "info" : "error"} visible={(confirmPassword || "").length > 0}>
                 {doPasswordsMatch ? 'Passwords match' : 'Passwords do not match'}
@@ -203,17 +195,19 @@ export const SignUpScreen = ({ navigation }: any) => {
                 style={styles.segmentedBtn}
               />
 
-              <Checkbox.Item
-                label="I confirm that I am 18 years or older."
-                status={is18 ? 'checked' : 'unchecked'}
+              <TouchableOpacity 
+                style={styles.customCheckboxContainer} 
                 onPress={() => setIs18(!is18)}
-                position="leading"
-                labelStyle={styles.checkboxLabel}
-                style={styles.checkboxItem}
-              />
+                activeOpacity={0.7}
+              >
+                <View style={[styles.customBox, is18 && styles.customBoxChecked]}>
+                  {is18 && <Feather name="check" size={16} color="white" />}
+                </View>
+                <Text style={styles.checkboxLabel}>I confirm that I am 18 years or older.</Text>
+              </TouchableOpacity>
+
             </View>
 
-            {/* 🚀 GRADIENT BUTTON 🚀 */}
             <LinearGradient
               colors={['#F43F5E', '#FF7A59', 'blue']}
               start={{ x: 0, y: 0 }}
@@ -269,7 +263,29 @@ const styles = StyleSheet.create({
   reqInvalid: { color: 'white' },
   sectionLabel: { fontWeight: '900', color: '#000', marginTop: 10, marginBottom: 10 },
   segmentedBtn: { marginBottom: 20 },
-  checkboxItem: { paddingHorizontal: 0, marginLeft: -8, marginBottom: 10 },
+  
+  customCheckboxContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginTop: 10,
+    marginBottom: 10 
+  },
+  customBox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: 'black', 
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    marginRight: 10,
+  },
+  customBoxChecked: {
+    backgroundColor: 'red', 
+    borderColor: 'red',     
+  },
+  
   checkboxLabel: { fontSize: 15, fontWeight: '700', color: '#374151', textAlign: 'left' },
   button: { borderRadius: 50, marginTop: 10 },
   buttonContent: { height: 56 },
